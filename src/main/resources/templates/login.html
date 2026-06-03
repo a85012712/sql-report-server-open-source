@@ -1,0 +1,1003 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>登录 - HIS报表系统</title>
+<style>
+:root {
+  --primary: #FF6B35;
+  --primary-light: #FF8C61;
+  --accent-orange: #FF9B35;
+  --accent-yellow: #FFD93D;
+  --accent-pink: #FF6B9D;
+  --accent-cyan: #4ECDC4;
+  --bg: #FFF5F0;
+  --bg-card: #FFFFFF;
+  --text: #2D3436;
+  --text-light: #636E72;
+  --shadow: rgba(255, 107, 53, 0.25);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  height: 100vh;
+  background: linear-gradient(135deg, #FFF5F0 0%, #FFF9F5 30%, #FFF0F5 60%, #F0F8FF 100%);
+  font-family: 'Fredoka', 'Nunito', 'Microsoft YaHei', 'PingFang SC', system-ui, sans-serif;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bg-decoration {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.bg-decoration .orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(60px);
+  opacity: 0.4;
+  animation: orbFloat 8s ease-in-out infinite;
+}
+
+.bg-decoration .orb:nth-child(1) {
+  width: 350px; height: 350px;
+  background: radial-gradient(circle, #FF6B35, transparent);
+  top: -100px; right: 10%;
+  animation-delay: 0s;
+}
+
+.bg-decoration .orb:nth-child(2) {
+  width: 300px; height: 300px;
+  background: radial-gradient(circle, #FFD93D, transparent);
+  bottom: -80px; left: 5%;
+  animation-delay: -2s;
+  animation-duration: 10s;
+}
+
+.bg-decoration .orb:nth-child(3) {
+  width: 250px; height: 250px;
+  background: radial-gradient(circle, #FF6B9D, transparent);
+  top: 40%; left: 40%;
+  animation-delay: -4s;
+  animation-duration: 12s;
+}
+
+.bg-decoration .orb:nth-child(4) {
+  width: 200px; height: 200px;
+  background: radial-gradient(circle, #4ECDC4, transparent);
+  bottom: 20%; right: 30%;
+  animation-delay: -6s;
+  animation-duration: 9s;
+}
+
+@keyframes orbFloat {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  25% { transform: translate(30px, -20px) scale(1.05); }
+  50% { transform: translate(-20px, 30px) scale(0.95); }
+  75% { transform: translate(20px, 20px) scale(1.02); }
+}
+
+.floating-shape {
+  position: absolute;
+  opacity: 0.15;
+  animation: shapeFloat 6s ease-in-out infinite;
+}
+
+.floating-shape:nth-child(5) {
+  width: 40px; height: 40px;
+  background: var(--primary);
+  border-radius: 50%;
+  top: 15%; left: 15%;
+  animation-delay: 0s;
+}
+
+.floating-shape:nth-child(6) {
+  width: 30px; height: 30px;
+  background: var(--accent-yellow);
+  border-radius: 8px;
+  top: 25%; right: 20%;
+  animation-delay: -1s;
+  animation-duration: 8s;
+}
+
+.floating-shape:nth-child(7) {
+  width: 25px; height: 25px;
+  background: var(--accent-pink);
+  clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+  bottom: 25%; left: 25%;
+  animation-delay: -2s;
+  animation-duration: 7s;
+}
+
+.floating-shape:nth-child(8) {
+  width: 35px; height: 35px;
+  background: var(--accent-cyan);
+  border-radius: 50%;
+  bottom: 15%; right: 15%;
+  animation-delay: -3s;
+  animation-duration: 9s;
+}
+
+@keyframes shapeFloat {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-20px) rotate(180deg); }
+}
+
+canvas#bgCanvas {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+}
+
+.page {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  gap: 60px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.left-section {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 400px;
+}
+
+.left-section .title {
+  font-size: 48px;
+  font-weight: 700;
+  color: var(--primary);
+  margin-bottom: 8px;
+  text-align: center;
+  letter-spacing: -1px;
+  text-shadow: 2px 2px 0px rgba(255, 107, 53, 0.2);
+}
+
+.left-section .desc {
+  font-size: 16px;
+  color: var(--text-light);
+  margin-bottom: 40px;
+  text-align: center;
+  font-weight: 500;
+}
+
+.characters-container {
+  position: relative;
+  width: 400px;
+  height: 280px;
+  transform: scale(1.3);
+}
+
+.character-purple {
+  position: absolute;
+  bottom: 0;
+  left: 70px;
+  width: 100px;
+  height: 180px;
+  background: linear-gradient(180deg, #9B59B6, #8E44AD);
+  border-radius: 12px 12px 0 0;
+  z-index: 1;
+  transform-origin: bottom center;
+  transition: transform 0.3s ease, height 0.3s ease;
+  box-shadow: 0 4px 15px rgba(155, 89, 182, 0.3);
+}
+
+.character-purple .face {
+  position: absolute;
+  display: flex;
+  gap: 16px;
+  left: 18px;
+  top: 24px;
+}
+
+.character-black {
+  position: absolute;
+  bottom: 0;
+  left: 165px;
+  width: 70px;
+  height: 140px;
+  background: linear-gradient(180deg, #34495E, #2C3E50);
+  border-radius: 10px 10px 0 0;
+  z-index: 2;
+  transform-origin: bottom center;
+  transition: transform 0.3s ease, height 0.3s ease;
+  box-shadow: 0 4px 15px rgba(52, 73, 94, 0.3);
+}
+
+.character-black .face {
+  position: absolute;
+  display: flex;
+  gap: 12px;
+  left: 14px;
+  top: 20px;
+}
+
+.character-orange {
+  position: absolute;
+  bottom: 0;
+  left: 10px;
+  width: 130px;
+  height: 100px;
+  background: linear-gradient(180deg, #FF9B35, #FF8C00);
+  border-radius: 65px 65px 0 0;
+  z-index: 3;
+  transform-origin: bottom center;
+  transition: transform 0.3s ease, height 0.3s ease;
+  box-shadow: 0 4px 15px rgba(255, 155, 53, 0.3);
+}
+
+.character-orange .face {
+  position: absolute;
+  display: flex;
+  gap: 20px;
+  left: 38px;
+  top: 32px;
+}
+
+.character-yellow {
+  position: absolute;
+  bottom: 0;
+  left: 220px;
+  width: 80px;
+  height: 110px;
+  background: linear-gradient(180deg, #FFD93D, #FFC107);
+  border-radius: 40px 40px 0 0;
+  z-index: 4;
+  transform-origin: bottom center;
+  transition: transform 0.3s ease, height 0.3s ease;
+  box-shadow: 0 4px 15px rgba(255, 217, 61, 0.3);
+}
+
+.character-yellow .face {
+  position: absolute;
+  display: flex;
+  gap: 14px;
+  left: 22px;
+  top: 28px;
+}
+
+.character-yellow .mouth {
+  position: absolute;
+  width: 30px;
+  height: 3px;
+  background: #2D2D2D;
+  border-radius: 999px;
+  left: 30px;
+  top: 56px;
+  transition: all 0.3s ease;
+}
+
+.eyeball {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  position: relative;
+  transition: height 0.08s ease;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.eyeball.small {
+  width: 14px;
+  height: 14px;
+}
+
+.eyeball.large {
+  width: 24px;
+  height: 24px;
+}
+
+.pupil {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #2D2D2D;
+  position: absolute;
+  transition: transform 0.05s linear;
+}
+
+.pupil::after {
+  content: '';
+  position: absolute;
+  width: 3px;
+  height: 3px;
+  background: #fff;
+  border-radius: 50%;
+  top: 1px;
+  right: 1px;
+}
+
+.pupil.small {
+  width: 5px;
+  height: 5px;
+}
+
+.blink .eyeball {
+  height: 2px !important;
+}
+
+.peeking .character-purple {
+  transform: skewX(-8deg) translateX(15px);
+  height: 200px;
+}
+
+.peeking .character-purple .face {
+  transform: translateX(8px) translateY(-5px);
+}
+
+.peeking .character-black {
+  transform: skewX(5deg) translateX(5px);
+}
+
+.peeking .character-black .face {
+  transform: translateX(3px);
+}
+
+.peeking .character-yellow {
+  transform: skewX(-3deg);
+}
+
+.peeking .character-yellow .mouth {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #2D2D2D;
+  left: 35px;
+}
+
+.typing .character-purple {
+  height: 210px;
+  transform: skewX(-12deg) translateX(25px);
+}
+
+.typing .character-purple .face {
+  transform: translateX(12px) translateY(-8px);
+}
+
+.typing .character-black {
+  transform: skewX(8deg) translateX(10px);
+  height: 155px;
+}
+
+.typing .character-black .face {
+  transform: translateX(5px) translateY(-3px);
+}
+
+.typing .character-orange {
+  transform: skewX(-5deg);
+  height: 115px;
+}
+
+.typing .character-orange .face {
+  transform: translateY(-5px);
+}
+
+.typing .character-yellow {
+  transform: skewX(-5deg);
+  height: 125px;
+}
+
+.typing .character-yellow .face {
+  transform: translateY(-3px);
+}
+
+.typing .character-yellow .mouth {
+  width: 24px;
+  height: 12px;
+  border-radius: 0 0 12px 12px;
+}
+
+.hiding .character-purple {
+  transform: skewX(-15deg) translateX(30px);
+  height: 220px;
+}
+
+.hiding .character-purple .face {
+  transform: translateX(15px) translateY(-10px);
+}
+
+.hiding .character-purple .eyeball {
+  height: 3px;
+}
+
+.hiding .character-black {
+  transform: skewX(10deg) translateX(15px);
+  height: 160px;
+}
+
+.hiding .character-black .face {
+  transform: translateX(8px) translateY(-5px);
+}
+
+.hiding .character-black .eyeball {
+  height: 2px;
+}
+
+.hiding .character-orange {
+  transform: skewX(-8deg);
+  height: 120px;
+}
+
+.hiding .character-orange .face {
+  transform: translateY(-8px);
+}
+
+.hiding .character-orange .eyeball {
+  height: 2px;
+}
+
+.hiding .character-yellow {
+  transform: skewX(-8deg);
+  height: 130px;
+}
+
+.hiding .character-yellow .face {
+  transform: translateY(-5px);
+}
+
+.hiding .character-yellow .eyeball {
+  height: 2px;
+}
+
+.hiding .character-yellow .mouth {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  left: 37px;
+}
+
+.form-wrapper {
+  width: 100%;
+  max-width: 400px;
+  background: var(--bg-card);
+  border-radius: 24px;
+  padding: 40px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(255, 107, 53, 0.1);
+  position: relative;
+  overflow: hidden;
+  border: 2px solid rgba(255, 107, 53, 0.1);
+}
+
+.form-wrapper::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--primary), var(--accent-yellow), var(--accent-pink));
+}
+
+.form-wrapper h1 {
+  text-align: center;
+  color: var(--text);
+  font-size: 28px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.form-wrapper .subtitle {
+  text-align: center;
+  color: var(--text-light);
+  font-size: 14px;
+  margin-bottom: 28px;
+  font-weight: 500;
+}
+
+.alert {
+  text-align: center;
+  padding: 10px 16px;
+  border-radius: 12px;
+  margin-bottom: 16px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.alert-error {
+  background: rgba(255, 107, 53, 0.1);
+  color: var(--primary);
+}
+
+.alert-success {
+  background: rgba(78, 205, 196, 0.1);
+  color: #4ECDC4;
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  display: block;
+  color: var(--text-light);
+  font-size: 12px;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  font-weight: 700;
+}
+
+.input-wrapper {
+  position: relative;
+}
+
+.form-group input {
+  width: 100%;
+  padding: 14px 18px;
+  background: #FFF8F5;
+  border: 2px solid #FFE8E0;
+  border-radius: 14px;
+  color: var(--text);
+  font-size: 15px;
+  outline: none;
+  transition: all 0.3s;
+  font-family: inherit;
+  font-weight: 600;
+}
+
+.form-group input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 4px var(--shadow);
+  background: #fff;
+}
+
+.form-group input::placeholder {
+  color: #BDBDBD;
+  font-weight: 400;
+}
+
+.eye-btn {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: var(--text-light);
+  cursor: pointer;
+  font-size: 18px;
+  padding: 4px;
+  transition: all 0.2s;
+  z-index: 10;
+}
+
+.eye-btn:hover {
+  color: var(--primary);
+  transform: translateY(-50%) scale(1.1);
+}
+
+.submit-btn {
+  width: 100%;
+  padding: 15px;
+  background: linear-gradient(135deg, var(--primary), var(--primary-light));
+  border: none;
+  border-radius: 14px;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  letter-spacing: 2px;
+  margin-top: 8px;
+  transition: all 0.3s;
+  position: relative;
+  overflow: hidden;
+  font-family: inherit;
+  box-shadow: 0 4px 15px var(--shadow);
+}
+
+.submit-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 35px var(--shadow);
+}
+
+.submit-btn::after {
+  content: '';
+  position: absolute;
+  top: -50%; left: -50%;
+  width: 200%; height: 200%;
+  background: linear-gradient(45deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  transform: rotate(45deg) translateX(-100%);
+  transition: transform 0.5s;
+}
+
+.submit-btn:hover::after {
+  transform: rotate(45deg) translateX(100%);
+}
+
+.footer {
+  text-align: center;
+  margin-top: 24px;
+  font-size: 12px;
+  color: #9ca3af;
+  line-height: 1.8;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-6px); }
+  40% { transform: translateX(6px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(4px); }
+}
+
+.shake { animation: shake 0.5s ease; }
+
+@media (max-width: 900px) {
+  .page {
+    flex-direction: column;
+    gap: 30px;
+    padding: 20px;
+  }
+  .left-section {
+    min-width: auto;
+  }
+  .left-section .title {
+    font-size: 32px;
+  }
+  .left-section .desc {
+    font-size: 14px;
+    margin-bottom: 20px;
+  }
+  .characters-container {
+    transform: scale(0.9);
+    width: 320px;
+    height: 220px;
+  }
+  .form-wrapper {
+    max-width: 400px;
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .characters-container { transform: scale(0.7); }
+  .form-wrapper { padding: 24px; }
+  .left-section .title { font-size: 28px; }
+}
+</style>
+</head>
+<body>
+
+<div class="bg-decoration">
+  <div class="orb"></div>
+  <div class="orb"></div>
+  <div class="orb"></div>
+  <div class="orb"></div>
+  <div class="floating-shape"></div>
+  <div class="floating-shape"></div>
+  <div class="floating-shape"></div>
+  <div class="floating-shape"></div>
+</div>
+
+<canvas id="bgCanvas"></canvas>
+
+<div class="page" id="page">
+  <div class="left-section">
+    <div class="title">HIS报表系统</div>
+    <div class="desc">内部数据查询平台</div>
+    <div class="characters-container" id="characters">
+      <div class="character-orange" id="charOrange">
+        <div class="face">
+          <div class="eyeball large"><div class="pupil small"></div></div>
+          <div class="eyeball large"><div class="pupil small"></div></div>
+        </div>
+      </div>
+      <div class="character-purple" id="charPurple">
+        <div class="face">
+          <div class="eyeball"><div class="pupil"></div></div>
+          <div class="eyeball"><div class="pupil"></div></div>
+        </div>
+      </div>
+      <div class="character-black" id="charBlack">
+        <div class="face">
+          <div class="eyeball small"><div class="pupil small"></div></div>
+          <div class="eyeball small"><div class="pupil small"></div></div>
+        </div>
+      </div>
+      <div class="character-yellow" id="charYellow">
+        <div class="face">
+          <div class="eyeball"><div class="pupil"></div></div>
+          <div class="eyeball"><div class="pupil"></div></div>
+        </div>
+        <div class="mouth" id="yellowMouth"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="form-wrapper" id="formWrapper">
+    <h1>欢迎回来</h1>
+    <p class="subtitle">请登录您的账号</p>
+    
+    <div class="alert alert-error" th:if="${param.error}">用户名或密码错误</div>
+    <div class="alert alert-success" th:if="${param.logout}">已成功退出登录</div>
+    
+    <form action="/login" method="post">
+      <div class="form-group">
+        <label>用户名</label>
+        <div class="input-wrapper">
+          <input type="text" name="username" required="required" autofocus="autofocus" placeholder="输入用户名..." autocomplete="off"/>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>密码</label>
+        <div class="input-wrapper">
+          <input type="password" id="password" name="password" required="required" placeholder="输入密码..."/>
+          <button type="button" class="eye-btn" id="eyeBtn">&#128065;</button>
+        </div>
+      </div>
+      <button type="submit" class="submit-btn" id="loginBtn">登 录</button>
+    </form>
+    
+    <div class="footer">
+      HIS报表系统 &copy; 2026 &nbsp;|&nbsp; YAO<br/>
+      Powered by Spring Boot
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  'use strict';
+
+  const CONFIG = {
+    particleCount: 80,
+    connectionDistance: 120,
+    gridSize: 120,
+    colors: ['#FF6B35', '#FFD93D', '#FF6B9D', '#4ECDC4', '#9B59B6']
+  };
+
+  let mouseX = window.innerWidth / 2;
+  let mouseY = window.innerHeight / 2;
+  let isPasswordFocused = false;
+  let isShowingPassword = false;
+  let isTyping = false;
+  let typeTimeout = null;
+  let particles = [];
+
+  const bgCanvas = document.getElementById('bgCanvas');
+  const bgCtx = bgCanvas.getContext('2d');
+  const characters = document.getElementById('characters');
+  const msg = document.querySelector('.alert-error');
+  const usernameInput = document.querySelector('input[name="username"]');
+  const passwordInput = document.getElementById('password');
+  const loginBtn = document.getElementById('loginBtn');
+  const eyeBtn = document.getElementById('eyeBtn');
+
+  function resizeBgCanvas() {
+    bgCanvas.width = window.innerWidth;
+    bgCanvas.height = window.innerHeight;
+  }
+  resizeBgCanvas();
+  window.addEventListener('resize', resizeBgCanvas);
+
+  class Particle {
+    constructor() {
+      this.x = Math.random() * bgCanvas.width;
+      this.y = Math.random() * bgCanvas.height;
+      this.radius = Math.random() * 2 + 0.5;
+      this.vx = (Math.random() - 0.5) * 0.3;
+      this.vy = (Math.random() - 0.5) * 0.3;
+      this.opacity = Math.random() * 0.3 + 0.1;
+      this.color = CONFIG.colors[Math.floor(Math.random() * CONFIG.colors.length)];
+    }
+
+    update() {
+      const dx = mouseX - this.x;
+      const dy = mouseY - this.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist < 200) {
+        this.x += dx * 0.0008;
+        this.y += dy * 0.0008;
+      }
+      this.x += this.vx;
+      this.y += this.vy;
+      if (this.x < 0 || this.x > bgCanvas.width) this.vx *= -1;
+      if (this.y < 0 || this.y > bgCanvas.height) this.vy *= -1;
+    }
+
+    draw() {
+      bgCtx.beginPath();
+      bgCtx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+      bgCtx.fillStyle = this.color;
+      bgCtx.globalAlpha = this.opacity;
+      bgCtx.fill();
+      bgCtx.globalAlpha = 1;
+    }
+  }
+
+  for (let i = 0; i < CONFIG.particleCount; i++) {
+    particles.push(new Particle());
+  }
+
+  function drawConnections() {
+    const grid = new Map();
+    const gridSize = CONFIG.gridSize;
+
+    particles.forEach((p, idx) => {
+      const gx = Math.floor(p.x / gridSize);
+      const gy = Math.floor(p.y / gridSize);
+      const key = gx + ',' + gy;
+      if (!grid.has(key)) grid.set(key, []);
+      grid.get(key).push(idx);
+    });
+
+    const checked = new Set();
+    particles.forEach((p1, i) => {
+      const gx = Math.floor(p1.x / gridSize);
+      const gy = Math.floor(p1.y / gridSize);
+
+      for (let dx = -1; dx <= 1; dx++) {
+        for (let dy = -1; dy <= 1; dy++) {
+          const key = (gx + dx) + ',' + (gy + dy);
+          const cell = grid.get(key);
+          if (!cell) continue;
+
+          cell.forEach(j => {
+            if (j <= i) return;
+            const pairKey = i + '-' + j;
+            if (checked.has(pairKey)) return;
+            checked.add(pairKey);
+
+            const p2 = particles[j];
+            const dist = Math.hypot(p1.x - p2.x, p1.y - p2.y);
+            if (dist < CONFIG.connectionDistance) {
+              bgCtx.beginPath();
+              bgCtx.moveTo(p1.x, p1.y);
+              bgCtx.lineTo(p2.x, p2.y);
+              bgCtx.strokeStyle = 'rgba(255, 107, 53,' + (0.15 * (1 - dist / CONFIG.connectionDistance)) + ')';
+              bgCtx.lineWidth = 0.5;
+              bgCtx.stroke();
+            }
+          });
+        }
+      }
+    });
+  }
+
+  function animateBg() {
+    bgCtx.clearRect(0, 0, bgCanvas.width, bgCanvas.height);
+    particles.forEach(p => { p.update(); p.draw(); });
+    drawConnections();
+    requestAnimationFrame(animateBg);
+  }
+  animateBg();
+
+  function updateEyes() {
+    const allEyeballs = document.querySelectorAll('.eyeball');
+
+    allEyeballs.forEach((eyeball) => {
+      const rect = eyeball.getBoundingClientRect();
+      const cx = rect.left + rect.width / 2;
+      const cy = rect.top + rect.height / 2;
+      const dx = mouseX - cx;
+      const dy = mouseY - cy;
+      const maxDist = 5;
+      const dist = Math.min(Math.hypot(dx, dy), maxDist);
+      const angle = Math.atan2(dy, dx);
+
+      const pupil = eyeball.querySelector('.pupil');
+      if (pupil) {
+        const px = Math.cos(angle) * dist;
+        const py = Math.sin(angle) * dist;
+        pupil.style.transform = 'translate(' + px + 'px, ' + py + 'px)';
+      }
+    });
+
+    requestAnimationFrame(updateEyes);
+  }
+  updateEyes();
+
+  function blinkCharacter(charSelector) {
+    const eyes = document.querySelectorAll(charSelector + ' .eyeball');
+    eyes.forEach(eye => eye.classList.add('blink'));
+    setTimeout(() => {
+      eyes.forEach(eye => eye.classList.remove('blink'));
+    }, 150);
+  }
+
+  setInterval(() => {
+    const chars = ['#charPurple', '#charBlack', '#charOrange', '#charYellow'];
+    const randomChar = chars[Math.floor(Math.random() * chars.length)];
+    blinkCharacter(randomChar);
+  }, 2000 + Math.random() * 3000);
+
+  function updateCharacterState() {
+    characters.classList.remove('typing', 'hiding', 'peeking');
+
+    if (isShowingPassword && isPasswordFocused) {
+      characters.classList.add('peeking');
+    } else if (isPasswordFocused) {
+      characters.classList.add('hiding');
+    } else if (isTyping) {
+      characters.classList.add('typing');
+    }
+  }
+
+  document.addEventListener('mousemove', (e) => {
+    mouseX = e.clientX;
+    mouseY = e.clientY;
+  });
+
+  if (usernameInput) {
+    usernameInput.addEventListener('focus', () => {
+      isPasswordFocused = false;
+      updateCharacterState();
+    });
+
+    usernameInput.addEventListener('input', () => {
+      isTyping = true;
+      updateCharacterState();
+      clearTimeout(typeTimeout);
+      typeTimeout = setTimeout(() => {
+        isTyping = false;
+        updateCharacterState();
+      }, 500);
+    });
+  }
+
+  if (passwordInput) {
+    passwordInput.addEventListener('focus', () => {
+      isPasswordFocused = true;
+      isTyping = false;
+      updateCharacterState();
+    });
+
+    passwordInput.addEventListener('input', () => {
+      isTyping = true;
+      updateCharacterState();
+      clearTimeout(typeTimeout);
+      typeTimeout = setTimeout(() => {
+        isTyping = false;
+        updateCharacterState();
+      }, 500);
+    });
+
+    passwordInput.addEventListener('blur', () => {
+      isPasswordFocused = false;
+      isTyping = false;
+      updateCharacterState();
+    });
+  }
+
+  if (eyeBtn && passwordInput) {
+    eyeBtn.addEventListener('click', () => {
+      const isHidden = passwordInput.type === 'password';
+      passwordInput.type = isHidden ? 'text' : 'password';
+      eyeBtn.innerHTML = isHidden ? '&#128565;' : '&#128065;';
+      isShowingPassword = isHidden;
+      updateCharacterState();
+    });
+  }
+
+  document.addEventListener('touchmove', (e) => {
+    mouseX = e.touches[0].clientX;
+    mouseY = e.touches[0].clientY;
+  });
+})();
+</script>
+</body>
+</html>
