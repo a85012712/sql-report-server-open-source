@@ -1,0 +1,103 @@
+server:
+  port: 8080
+  shutdown: graceful
+  servlet:
+    session:
+      timeout: 60m
+      cookie:
+        http-only: true
+        secure: false  # 内网使用，HTTPS时改为true
+        name: REPORTSESSIONID
+  tomcat:
+    max-threads: 150  # 80并发场景，150线程足够
+    min-spare-threads: 20
+    accept-count: 100
+    connection-timeout: 30s
+    max-connections: 200
+    # 禁用AJP
+    ajp:
+      enabled: false
+
+spring:
+  application:
+    name: sql-report-server
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+  datasource:
+    url: ${DB_URL:jdbc:oracle:thin:@localhost:1521:orcl}
+    username: ${DB_USERNAME:scott}
+    password: ${DB_PASSWORD:tiger}
+    driver-class-name: oracle.jdbc.OracleDriver
+    hikari:
+      pool-name: ReportHikariPool
+      minimum-idle: 5
+      maximum-pool-size: 25  # 80并发，25连接足够（连接复用）
+      connection-timeout: 10000
+      idle-timeout: 300000  # 5分钟
+      max-lifetime: 600000  # 10分钟（Oracle建议小于数据库连接超时，避免ORA-17008）
+      leak-detection-threshold: 120000  # 2分钟（慢查询可能超过30秒，避免误报）
+      connection-test-query: SELECT 1 FROM DUAL
+      validation-timeout: 5000
+  thymeleaf:
+    cache: true
+    encoding: UTF-8
+    prefix: classpath:/templates/
+  mvc:
+    async:
+      request-timeout: 120000
+    static-path-pattern: /static/**
+
+app:
+  security:
+    admin:
+      username: ${ADMIN_USERNAME:admin}
+      password: ${ADMIN_PASSWORD:}  # Bug #9修复：移除默认密码admin123，未配置时启动失败
+    users:
+      - ${EXTRA_USER1:}
+  users:
+    data-file: ${APP_DATA_DIR:./data}/users.json
+
+report:
+  scripts-dir: ${APP_SCRIPTS_DIR:scripts}
+  max-rows: 20000
+  max-sql-length: 1000000  # SQL最大长度限制（已放开，支持复杂SQL）
+  query-timeout: 120  # 查询超时（秒），超过2分钟视为异常
+
+# 限流配置
+rate-limiter:
+  enabled: true
+  requests-per-second: 10  # 每秒请求数
+  trust-proxy: false  # Bug #5修复：是否信任X-Forwarded-For头（有反向代理时设为true）
+
+logging:
+  file:
+    name: ${APP_LOG_DIR:./logs}/his-report-server.log
+  logback:
+    rollingpolicy:
+      max-file-size: 50MB
+      max-history: 30
+      total-size-cap: 1GB
+      clean-history-on-start: true
+  level:
+    com.report: INFO
+    org.springframework.web: WARN
+    org.springframework.security: WARN
+    com.zaxxer.hikari: INFO
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,metrics,prometheus
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: when-authorized
+      probes:
+        enabled: true
+  health:
+    db:
+      enabled: true
+    diskspace:
+      enabled: true
+      threshold: 1GB  # 磁盘空间阈值
