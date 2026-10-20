@@ -1,10 +1,39 @@
-# 编译输出
+# ==================== 编译输出 ====================
 target/
 *.class
 *.war
 *.jar.original
 
-# IDE文件
+# ==================== 发布包 ====================
+# 各版本包按 sql-report-server-<版本>.jar 并存于文件系统，体积大（约 60MB/个），不入库
+*.jar
+
+# ==================== 密钥与凭据（严禁入库） ====================
+# secret.key 是 AES-256-GCM 主密钥，.env 内含 DB_PASSWORD / ADMIN_PASSWORD 密文
+secret.key
+.env
+env.bat
+*.env.local
+*.key
+
+# ==================== 运行时数据（严禁入库） ====================
+# data/ 含 users.json（口令哈希）、datasources.json（加密凭据）、
+# personnel.json（人事数据）、departments.json（科室字典）及各类 .bak 快照
+# 均为运行时数据，由系统启动时自动创建/维护，新环境部署无需携带
+data/
+
+# ==================== 日志 ====================
+logs/
+*.log
+*.log.*
+
+# ==================== 备份文件 ====================
+# 注意 *.bak 不匹配 pom.xml.bak.20260918090435 这类带时间戳的备份，必须用 *.bak.*
+*.bak
+*.bak.*
+*.orig
+
+# ==================== IDE 文件 ====================
 .idea/
 *.iml
 .vscode/
@@ -12,36 +41,30 @@ target/
 .project
 .classpath
 
-# 环境变量文件（包含敏感信息）
-.env
-env.bat
-*.env.local
+# ==================== AI 助手工作数据 ====================
+# AI 编码助手在本仓库留下的本地工作数据目录，不入库
+.workbuddy-ai/
 
-# 用户数据文件（包含加密密码）
-data/users.json
-users.json
-
-# 运行时数据
-data/datasources.json
-data/report-groups.json
-
-# 日志文件
-logs/
-*.log
-
-# 临时文件
+# ==================== 临时文件 ====================
 *.tmp
-*.bak
 *.swp
 ~$*
+cookies*.txt
+c[0-9].txt
+cc*.txt
+t.json
+t_resp.txt
+test_login*.html
 
-# 操作系统文件
+# ==================== 操作系统文件 ====================
 .DS_Store
 Thumbs.db
 
-# Maven wrapper
-.mvn/wrapper/maven-wrapper.jar
+# ==================== Maven wrapper ====================
+.mvn/
+mvnw
+mvnw.cmd
 
-# 构建产物
+# ==================== 构建产物 ====================
 build/
 dist/

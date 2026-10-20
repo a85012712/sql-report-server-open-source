@@ -1,7 +1,6 @@
 package com.report.model;
 
 import java.util.List;
-import java.util.Map;
 
 /**
  * 报表信息
@@ -11,6 +10,7 @@ public class ReportInfo {
     private String name;        // 报表名称
     private String description; // 描述
     private String group;       // 所属分组ID
+    private String dataSourceId; // 绑定数据源ID，空则用默认
     private List<ParamDef> params; // 参数定义列表
     private String sql;         // SQL语句
     private String file;        // 源文件名
@@ -24,6 +24,8 @@ public class ReportInfo {
     public void setDescription(String description) { this.description = description; }
     public String getGroup() { return group; }
     public void setGroup(String group) { this.group = group; }
+    public String getDataSourceId() { return dataSourceId; }
+    public void setDataSourceId(String dataSourceId) { this.dataSourceId = dataSourceId; }
     public List<ParamDef> getParams() { return params; }
     public void setParams(List<ParamDef> params) { this.params = params; }
     public String getSql() { return sql; }
@@ -69,6 +71,7 @@ public class ReportInfo {
         private int page;
         private int pageSize;
         private String error;
+        private boolean truncated; // 数据是否因超过行数上限被截断
 
         public List<String> getColumns() { return columns; }
         public void setColumns(List<String> columns) { this.columns = columns; }
@@ -82,5 +85,7 @@ public class ReportInfo {
         public void setPageSize(int pageSize) { this.pageSize = pageSize; }
         public String getError() { return error; }
         public void setError(String error) { this.error = error; }
+        public boolean isTruncated() { return truncated; }
+        public void setTruncated(boolean truncated) { this.truncated = truncated; }
     }
 }

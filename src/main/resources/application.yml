@@ -1,13 +1,14 @@
 server:
-  port: 8080
+  port: ${SERVER_PORT:8090}  # 默认端口，可用 SERVER_PORT 环境变量覆盖
   shutdown: graceful
   servlet:
     session:
-      timeout: 60m
+      timeout: 30m
       cookie:
         http-only: true
         secure: false  # 内网使用，HTTPS时改为true
-        name: REPORTSESSIONID
+        name: BISESSIONID  # 会话 Cookie 名；同主机部署多实例时请改成互不相同的值，避免会话串号
+        same-site: Lax
   tomcat:
     max-threads: 150  # 线程池上限，按实际并发量调整
     min-spare-threads: 20
@@ -24,20 +25,26 @@ spring:
   lifecycle:
     timeout-per-shutdown-phase: 30s
   datasource:
-    url: ${DB_URL:jdbc:oracle:thin:@localhost:1521:orcl}
-    username: ${DB_USERNAME:scott}
-    password: ${DB_PASSWORD:tiger}
+    url: ${DB_URL:}
+    # 不再有 scott/tiger 这类示例默认值：.env 缺失时早先会静默按 scott/tiger@localhost
+    #   起一个必失败的连接池，只在启动日志里留一行 WARN。留空 = 连不上就是连不上，
+    #   由 DataSourceService 明确降级并记进 /actuator/health，不再假装能启动。
+    username: ${DB_USERNAME:}
+    password: ${DB_PASSWORD:}
     driver-class-name: oracle.jdbc.OracleDriver
     hikari:
-      pool-name: ReportHikariPool
-      minimum-idle: 5
+      # 本项目排除了 DataSourceAutoConfiguration（见 PrimaryDataSourceConfig），
+      #   所以下面这两个键是**唯一**被 DataSourceService 按 @Value 读走的；
+      #   其余池参数全部在 DataSourceService#mkPool 里硬编码（maxLifetime 600000、
+      #   leakDetectionThreshold 120000、connectionTestQuery 按驱动类型选、
+      #   poolName = "DS-" + 数据源 id，以及 Oracle 的 CONNECT_TIMEOUT / ReadTimeout）。
+      #   原先这里还写着 7 个键（pool-name / connection-timeout / idle-timeout /
+      #   max-lifetime / leak-detection-threshold / connection-test-query /
+      #   validation-timeout），**一个都不生效**，而且 max-lifetime 写的 1800000
+      #   与代码里的 600000 相反，运维照着改不会有任何效果，故直接删除。
+      #   要调这些参数请去改 mkPool，或在这里新增键后同步补 @Value 读取。
       maximum-pool-size: 25  # 连接池上限，按实际并发量调整（连接可复用）
-      connection-timeout: 10000
-      idle-timeout: 300000  # 5分钟
-      max-lifetime: 600000  # 10分钟（Oracle建议小于数据库连接超时，避免ORA-17008）
-      leak-detection-threshold: 120000  # 2分钟（慢查询可能超过30秒，避免误报）
-      connection-test-query: SELECT 1 FROM DUAL
-      validation-timeout: 5000
+      minimum-idle: 5
   thymeleaf:
     cache: true
     encoding: UTF-8
@@ -51,33 +58,102 @@ app:
   security:
     admin:
       username: ${ADMIN_USERNAME:admin}
-      password: ${ADMIN_PASSWORD:}  # Bug #9修复：移除默认密码admin123，未配置时启动失败
+      password: ${ADMIN_PASSWORD:}  # 未配置时启动失败
+    # 新建账号与「重置口令」时下发的初始口令。默认值 666999 是历史沿用的共享口令，
+    # 便于管理员统一告知用户，但它同时是公开可猜的 —— 对外部署时应当改掉。
+    initial-password: ${INITIAL_USER_PASSWORD:666999}
     users:
       - ${EXTRA_USER1:}
+    login:
+      max-failures: 5
+      lock-minutes: 15
+      per-ip-per-minute: ${LOGIN_PER_IP_PER_MINUTE:10}  # 表单登录按 IP 限速；POST /login 不走 /api/** 限流拦截器
+      # 连错几次之后开始要求算术式图片验证码（工号维度和来源 IP 维度取「或」）。
+      # 为什么默认 2 而不是跟着 max-failures=5：撞库的形状是「对每个工号只试一次初始口令」，
+      # 单工号计数永远到不了 5；到 2 就该让填码的人停下来想一想。0 = 整个验证码功能关闭。
+      captcha-after-failures: ${LOGIN_CAPTCHA_AFTER_FAILURES:2}
+      # 注意：同机反向代理下必须改成 false：豁免判据取 TCP 对端地址（不可伪造），
+      # nginx 与 jar 同机时所有请求的对端都是 127.0.0.1，这层防护会静默归零。
+      # 保持 true 的理由和 IP 限速豁免一致，本机自检与 tools/ 下十几个门禁探针都从回环连续登录。
+      captcha-exempt-loopback: ${LOGIN_CAPTCHA_EXEMPT_LOOPBACK:true}
   users:
     data-file: ${APP_DATA_DIR:./data}/users.json
+  # 「从HIS导入」字典的源表查询。默认值为通用示例表名，部署时改成现场 HIS 的真实表名/列名。
+  # 列顺序固定：人员 = 工号/姓名/性别/职称/科室编码/电话/拼音码/在用标志；科室 = 编码/名称/联系人/电话。
+  his-import:
+    personnel-sql: ${HIS_PERSONNEL_SQL:SELECT staff_no, staff_name, gender, title, dept_code, phone, pinyin, in_use FROM his_staff ORDER BY staff_no}
+    department-sql: ${HIS_DEPARTMENT_SQL:SELECT dept_code, dept_name, contact, phone FROM his_department ORDER BY dept_code}
+  datasource:
+    # 这三个路径必须一起跟 APP_DATA_DIR 走。早先只有 users.json 读了它，
+    #   于是设 APP_DATA_DIR 指向别的目录会把运行态劈成两个目录：用户在一个地方，
+    #   数据源/分组仍在 .\data\，备份漏一半，迁移像「配置凭空丢了」。
+    config-file: ${APP_DATA_DIR:./data}/datasources.json
+    default-id: default
+  data:
+    group-config: ${APP_DATA_DIR:./data}/groups.json
+  # 操作审计（「操作审计」页的数据源）
+  audit:
+    # 留存在哪：留空 = 落在 users.json 同级目录下的 audit/ 子目录（即跟 APP_DATA_DIR 走）。
+    # 单独存按天 JSONL，而不是混在运行日志里：混着既查不动，也保不住（见 logging 段注释）。
+    # dir: /var/lib/sql-report-server/audit
+    retention-days: ${AUDIT_RETENTION_DAYS:30}   # 默认 30 天；<=0 = 永不过期（会无界增长，需自行清盘）
+    # 审计是旁路记录：写失败只计数 + 打 ERROR，绝不让一次报表查询因为磁盘满而失败。
+    # 白名单：**同时**命中下面两份名单的记录才不落台账（规则在 AuditStore.append 一处生效，
+    # 三条写入路径都从那里过）。默认只挡超管的巡检噪声 ，
+    # 只按用户免记等于给 admin 开无痕迹通道（查患者数据、改别人口令、删账号都不留痕），
+    # 所以 query / export / 各类写操作 / loginFailed（超管被爆破的信号，不是噪声）一律照记。
+    exclude-users: ${AUDIT_EXCLUDE_USERS:admin}
+    exclude-actions: ${AUDIT_EXCLUDE_ACTIONS:auditView,loginSuccess,logout}
+  cors:
+    # 逗号分隔的允许跨源列表，默认为空 = 不接受任何跨源（前端与接口同源，本不需要 CORS）。
+    # 只有确需浏览器端跨源调用 /api/** 时才填，例如 Grafana 直连查询：
+    #   app.cors.allowed-origins: http://grafana.internal:3000
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:}
 
 report:
   scripts-dir: ${APP_SCRIPTS_DIR:scripts}
   max-rows: 20000
   max-sql-length: 1000000  # SQL最大长度限制（已放开，支持复杂SQL）
   query-timeout: 120  # 查询超时（秒），超过2分钟视为异常
+  count-cache-ttl-seconds: 60   # 分页 COUNT 缓存，0=关闭
+  options-cache-ttl-seconds: 300  # 下拉选项 SQL 缓存，0=关闭
+  export-concurrency: 5   # 导出并发上限（独立信号量，避免与查询叠加打满连接池）
+  query-cache-ttl-seconds: 0  # 分页查询结果缓存 TTL（秒），0=关闭；开启后一次取全量再内存分页
+  query-cache-max-rows: 2000   # 仅缓存行数不超过该值的结果，防止整表缓存撑爆堆内存
+  datasource-check-on-startup: true  # 启动时检查默认数据源连通性
 
-# 限流配置
+# 可视化平台（数据大屏）配置
+screen:
+  enabled: true  # 总开关
+  scripts-dir: ${APP_SCREEN_SCRIPTS_DIR:scripts/screen}  # 指标SQL目录（相对应用运行目录）
+  default-interval-minutes: 10  # 默认刷新间隔（分钟），指标SQL的YAML头可用 interval-minutes 覆盖
+
+# 限流配置（可按路径分档）
 rate-limiter:
   enabled: true
-  requests-per-second: 10  # 每秒请求数
-  trust-proxy: false  # Bug #5修复：是否信任X-Forwarded-For头（有反向代理时设为true）
+  requests-per-second: 10  # 默认每秒请求数
+  # 分档：query/export 更宽，admin 更严（逗号分隔 pathPrefix:limit）
+  # /api/admin/ 由 5 提到 20：用户管理页一次加载就要打 6 个管理接口
+  #   （current-user / users / next-id / screen-no-options / roles/options / departments/enabled），
+  #   同一秒内即触顶 → 真人偶发 429，表现是「某个下拉空白」而不是报错，最难归因。
+  path-limits: /api/report/:20,/api/admin/:20
+  trust-proxy: false  # 有反向代理时设为 true
 
 logging:
   file:
-    name: ${APP_LOG_DIR:./logs}/his-report-server.log
+    name: ${APP_LOG_DIR:./logs}/sql-report-server.log
   logback:
     rollingpolicy:
+      # max-history 必须 >= app.audit.retention-days，否则「运行日志留 30 天」是句空话
       max-file-size: 50MB
       max-history: 30
-      total-size-cap: 1GB
-      clean-history-on-start: true
+      total-size-cap: 2GB
+      # 原来这里是 true，它让**每次重启都把归档日志全删掉**：
+      #   升级重启一次，「这个月谁导出过患者明细」就一起没了。而重启是常态，
+      #   审计留存绝不能跟着应用包走，故改为 false（启动不清历史，只按上面
+      #   max-history / total-size-cap 两个上限滚动）。
+      #   注意：改这一项不会自动删已有历史，磁盘占用由 max-history 与 total-size-cap 兜住。
+      clean-history-on-start: false
   level:
     com.report: INFO
     org.springframework.web: WARN
@@ -88,13 +164,22 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,metrics,prometheus
+        # health/prometheus 公开（prometheus 供采集器抓取）；metrics/info 需登录后访问（见 SecurityConfig）
+        # info 展示构建信息（版本号/构建时间），由 spring-boot-maven-plugin 的 build-info goal 生成
+        include: health,prometheus,metrics,info
       base-path: /actuator
   endpoint:
     health:
       show-details: when-authorized
       probes:
         enabled: true
+    prometheus:
+      enabled: true
+    metrics:
+      enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name:sql-report-server}
   health:
     db:
       enabled: true

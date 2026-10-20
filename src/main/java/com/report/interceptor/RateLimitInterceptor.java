@@ -8,13 +8,14 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * 基于IP的请求限流拦截器（固定窗口计数器算法）
- * 防止恶意请求和DDoS攻击
+ * 基于 IP 的请求限流（固定窗口），支持按路径前缀分档限流。
  */
 @Component
 public class RateLimitInterceptor implements HandlerInterceptor {
@@ -24,37 +25,94 @@ public class RateLimitInterceptor implements HandlerInterceptor {
     private final ConcurrentHashMap<String, RequestCounter> requestCounts = new ConcurrentHashMap<>();
 
     @Value("${rate-limiter.requests-per-second:10}")
-    private int maxRequestsPerSecond;
+    private int defaultMaxPerSecond;
 
     @Value("${rate-limiter.enabled:true}")
     private boolean enabled;
 
-    private static final long CLEANUP_INTERVAL = 60000; // 1分钟清理一次
-    private static final long WINDOW_SIZE = 1000; // 1秒窗口
-
-    // Bug #7修复：使用AtomicLong保证原子性，避免多线程重复清理
-    private final AtomicLong lastCleanupTime = new AtomicLong(System.currentTimeMillis());
-
-    // Bug #5修复：是否信任代理头（部署在反向代理后面时设为true）
     @Value("${rate-limiter.trust-proxy:false}")
     private boolean trustProxy;
 
+    /** 格式: /api/report/:20,/api/admin/:5 */
+    @Value("${rate-limiter.path-limits:}")
+    private String pathLimitsConfig;
+
+    private static final long CLEANUP_INTERVAL = 60000;
+    private static final long WINDOW_SIZE = 1000;
+
+    private final AtomicLong lastCleanupTime = new AtomicLong(System.currentTimeMillis());
+    private volatile List<PathLimit> pathLimits = List.of();
+    private volatile boolean pathLimitsParsed;
+
+    private static final class PathLimit {
+        final String prefix;
+        final int limit;
+        PathLimit(String prefix, int limit) {
+            this.prefix = prefix;
+            this.limit = limit;
+        }
+    }
+
+    private void ensurePathLimitsParsed() {
+        if (pathLimitsParsed) return;
+        synchronized (this) {
+            if (pathLimitsParsed) return;
+            List<PathLimit> list = new ArrayList<>();
+            if (pathLimitsConfig != null && !pathLimitsConfig.isBlank()) {
+                for (String part : pathLimitsConfig.split(",")) {
+                    String p = part.trim();
+                    if (p.isEmpty()) continue;
+                    int idx = p.lastIndexOf(':');
+                    if (idx <= 0 || idx == p.length() - 1) continue;
+                    String prefix = p.substring(0, idx).trim();
+                    try {
+                        int lim = Integer.parseInt(p.substring(idx + 1).trim());
+                        if (lim > 0 && !prefix.isEmpty()) {
+                            list.add(new PathLimit(prefix, lim));
+                        }
+                    } catch (NumberFormatException ignore) {
+                        log.warn("忽略无效限流配置: {}", p);
+                    }
+                }
+                // 长前缀优先匹配
+                list.sort((a, b) -> Integer.compare(b.prefix.length(), a.prefix.length()));
+            }
+            pathLimits = list;
+            pathLimitsParsed = true;
+        }
+    }
+
+    private int resolveLimit(String path) {
+        ensurePathLimitsParsed();
+        if (path != null) {
+            for (PathLimit pl : pathLimits) {
+                if (path.startsWith(pl.prefix)) {
+                    return pl.limit;
+                }
+            }
+        }
+        return defaultMaxPerSecond;
+    }
+
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
-        // 限流功能关闭时直接放行
         if (!enabled) {
             return true;
         }
-
-        // OPTIONS请求直接放行（CORS预检）
         if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
             return true;
         }
 
         String clientIp = getClientIp(request);
+        String path = request.getServletPath();
+        if (path == null || path.isEmpty()) {
+            path = request.getRequestURI();
+        }
+        int maxPerSecond = resolveLimit(path);
+        // 分桶：IP + 限流档位，避免不同档位互相抢配额
+        String bucket = clientIp + "|" + maxPerSecond;
         long currentTime = System.currentTimeMillis();
 
-        // 定期清理过期记录（Bug #7修复：使用CAS保证只有一个线程执行清理）
         long lastCleanup = lastCleanupTime.get();
         if (currentTime - lastCleanup > CLEANUP_INTERVAL) {
             if (lastCleanupTime.compareAndSet(lastCleanup, currentTime)) {
@@ -62,41 +120,31 @@ public class RateLimitInterceptor implements HandlerInterceptor {
             }
         }
 
-        RequestCounter counter = requestCounts.compute(clientIp, (key, existing) -> {
+        RequestCounter counter = requestCounts.compute(bucket, (key, existing) -> {
             if (existing == null || currentTime - existing.windowStart > WINDOW_SIZE) {
-                // 新的1秒窗口
                 return new RequestCounter(currentTime, 1);
             } else {
-                // 同一窗口内
                 existing.count.incrementAndGet();
                 return existing;
             }
         });
 
         int currentCount = counter.count.get();
-        if (currentCount >= maxRequestsPerSecond) {
-            log.warn("IP {} 请求过于频繁: {} 次/秒", clientIp, currentCount);
-
+        if (currentCount >= maxPerSecond) {
+            log.warn("IP {} 请求过于频繁: {} 次/秒 (path={}, limit={})", clientIp, currentCount, path, maxPerSecond);
             response.setStatus(429);
             response.setContentType("application/json;charset=UTF-8");
             response.setHeader("Retry-After", "1");
             response.getWriter().write("{\"error\":\"请求过于频繁，请稍后再试\",\"retryAfter\":1}");
             return false;
         }
-
         return true;
     }
 
-    /**
-     * 获取客户端IP
-     * Bug #5修复：默认使用remoteAddr防止伪造，仅在trustProxy=true时读取代理头
-     */
     private String getClientIp(HttpServletRequest request) {
         if (!trustProxy) {
-            // 不信任代理头，直接使用TCP连接IP（防伪造）
             return request.getRemoteAddr();
         }
-        // 信任代理头时，从X-Forwarded-For获取真实IP
         String ip = request.getHeader("X-Forwarded-For");
         if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
             ip = request.getHeader("X-Real-IP");
@@ -104,7 +152,6 @@ public class RateLimitInterceptor implements HandlerInterceptor {
         if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
             ip = request.getRemoteAddr();
         }
-        // 取第一个IP（最左边的是原始客户端IP）
         if (ip != null && ip.contains(",")) {
             ip = ip.split(",")[0].trim();
         }

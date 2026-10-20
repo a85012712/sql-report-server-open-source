@@ -1,0 +1,15 @@
+# 行尾策略：文本文件一律以 LF 入库，避免不同机器互相污染 diff
+* text=auto eol=lf
+
+# Windows 批处理脚本必须以 CRLF 检出。
+# 批处理里的 goto / label / 括号块是按 CRLF 切行的，LF 行尾会让 cmd.exe 跳错行甚至
+# 把下一行当成 goto 的目标执行，表现为「脚本莫名跑飞」。eol=crlf 保证任何系统上
+# 检出的都是 CRLF，与检出版本库的设置无关。
+*.bat text eol=crlf
+
+# 二进制资源不做任何换行转换
+*.png binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.jar binary

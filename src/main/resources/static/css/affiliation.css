@@ -1,0 +1,564 @@
+/* ==========================================================================
+   affiliation.css — 工号归属管理界面样式
+   --------------------------------------------------------------------------
+   设计变量全部沿用主项目 main.css 的 :root 定义（--primary / --radius /
+   --gray-* / --shadow），因此可以直接融进现有页面而不产生视觉割裂。
+   若单独运行本原型，index.html 里已内置了一份等价的 :root 兜底。
+   ========================================================================== */
+
+/* ---------------- 容器骨架 ---------------- */
+.af-root {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    height: 100%;
+    min-height: 0;
+    position: relative;
+}
+
+/* ---------------- 顶部工具栏 ---------------- */
+.af-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    padding: 12px 14px;
+    background: #fff;
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+}
+
+.af-toolbar .af-search {
+    position: relative;
+    flex: 1 1 240px;
+    max-width: 320px;
+}
+
+.af-toolbar .af-search::before {
+    content: "\1F50D";
+    position: absolute;
+    left: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 12px;
+    opacity: .45;
+    pointer-events: none;
+}
+
+.af-toolbar .af-search .form-control {
+    padding-left: 30px;
+}
+
+.af-toolbar select.form-control {
+    flex: 0 0 auto;
+    min-width: 140px;
+    width: auto;
+}
+
+.af-stats {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--gray-500);
+}
+
+.af-stats b {
+    color: var(--primary);
+    font-size: var(--fs-lg);
+}
+
+/* ---------------- 主体两栏 ---------------- */
+.af-main {
+    display: grid;
+    grid-template-columns: minmax(380px, 1fr) minmax(420px, 1.15fr);
+    gap: 12px;
+    min-height: 0;
+    flex: 1 1 auto;
+}
+
+@media (max-width: 1100px) {
+    .af-main {
+        grid-template-columns: 1fr;
+    }
+}
+
+.af-card {
+    background: #fff;
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.af-card-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--gray-200);
+    background: var(--gray-50);
+}
+
+.af-card-head h3 {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--gray-800);
+    margin: 0;
+}
+
+.af-card-head .af-sub {
+    font-size: 12px;
+    color: var(--gray-500);
+}
+
+.af-card-head .af-head-right {
+    margin-left: auto;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.af-card-body {
+    overflow: auto;
+    min-height: 0;
+    flex: 1 1 auto;
+}
+
+/* ---------------- 工号列表 ---------------- */
+.af-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.af-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--gray-50);
+    color: var(--gray-600);
+    font-weight: 600;
+    text-align: left;
+    padding: 9px 12px;
+    border-bottom: 1px solid var(--gray-200);
+    white-space: nowrap;
+}
+
+.af-table tbody td {
+    padding: 9px 12px;
+    border-bottom: 1px solid var(--gray-100);
+    color: var(--gray-700);
+    vertical-align: middle;
+}
+
+.af-table tbody tr {
+    cursor: pointer;
+    transition: background .12s;
+}
+
+.af-table tbody tr:hover {
+    background: var(--gray-50);
+}
+
+.af-table tbody tr.active {
+    background: #eef2ff;
+    box-shadow: inset 3px 0 0 var(--primary);
+}
+
+.af-table tbody tr.active td {
+    color: var(--primary-dark);
+}
+
+.af-table .af-mono {
+    font-family: ui-monospace, Consolas, Monaco, monospace;
+    font-size: 12px;
+    color: var(--gray-500);
+}
+
+.af-empty {
+    padding: 40px 16px;
+    text-align: center;
+    color: var(--gray-400);
+    font-size: 13px;
+}
+
+/* ---------------- 标签 / 徽章 ---------------- */
+.af-tag {
+    display: inline-block;
+    padding: 1px 8px;
+    border-radius: 999px;
+    font-size: 12px;
+    line-height: 18px;
+    white-space: nowrap;
+    background: var(--gray-100);
+    color: var(--gray-600);
+}
+
+.af-tag.is-primary { background: #eef2ff; color: var(--primary-dark); }
+.af-tag.is-success { background: #dcfce7; color: #15803d; }
+.af-tag.is-warn    { background: #fef3c7; color: #b45309; }
+.af-tag.is-muted   { background: var(--gray-100); color: var(--gray-400); }
+.af-tag.is-plain   { background: transparent; color: var(--gray-400); border: 1px dashed var(--gray-300); }
+
+/* ---------------- 编辑面板 ---------------- */
+.af-editor {
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.af-section {
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius);
+    overflow: hidden;
+}
+
+.af-section-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: var(--gray-50);
+    border-bottom: 1px solid var(--gray-200);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--gray-700);
+}
+
+.af-section-head .af-hint {
+    margin-left: auto;
+    font-weight: 400;
+    font-size: 12px;
+    color: var(--gray-500);
+}
+
+.af-section-body {
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.af-field {
+    display: grid;
+    grid-template-columns: 84px 1fr;
+    align-items: center;
+    gap: 10px;
+}
+
+.af-field > label {
+    font-size: 13px;
+    color: var(--gray-600);
+    text-align: right;
+}
+
+.af-field .af-control {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.af-field select.form-control,
+.af-field input.form-control {
+    width: 100%;
+    max-width: 320px;
+}
+
+.af-field .af-note {
+    font-size: 12px;
+    color: var(--gray-400);
+    white-space: nowrap;
+}
+
+.af-field .af-control.is-stack {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.af-readonly {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border-radius: var(--radius-sm);
+    background: var(--gray-50);
+    border: 1px dashed var(--gray-300);
+    font-size: 13px;
+    color: var(--gray-700);
+    min-height: 34px;
+}
+
+.af-readonly.is-derived {
+    background: #eef2ff;
+    border-color: #c7d2fe;
+    color: var(--primary-dark);
+}
+
+/* 复选框行 */
+.af-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--gray-600);
+    cursor: pointer;
+    user-select: none;
+}
+
+.af-check input {
+    cursor: pointer;
+    accent-color: var(--primary);
+}
+
+/* ---------------- 派生结果（生效范围） ---------------- */
+.af-scope-grid {
+    display: grid;
+    grid-template-columns: 92px 1fr;
+    gap: 8px 10px;
+    align-items: start;
+    font-size: 13px;
+}
+
+.af-scope-grid > .af-scope-key {
+    color: var(--gray-500);
+    text-align: right;
+    padding-top: 2px;
+}
+
+.af-scope-val {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    min-height: 22px;
+    align-items: center;
+}
+
+.af-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 8px;
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius-sm);
+    background: var(--gray-50);
+    max-height: 168px;
+    overflow: auto;
+}
+
+.af-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 9px;
+    border-radius: 999px;
+    border: 1px solid var(--gray-300);
+    background: #fff;
+    font-size: 12px;
+    color: var(--gray-600);
+    cursor: pointer;
+    user-select: none;
+    transition: background-color var(--dur) var(--ease-out), color var(--dur) var(--ease-out), border-color var(--dur) var(--ease-out), box-shadow var(--dur) var(--ease-out), transform var(--dur-fast) var(--ease-out);
+}
+
+.af-chip:hover {
+    border-color: var(--primary-light);
+    color: var(--primary);
+}
+
+.af-chip.on {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: #fff;
+}
+
+.af-chip-group-label {
+    flex-basis: 100%;
+    font-size: var(--fs-xs);
+    color: var(--gray-400);
+    margin-top: 4px;
+}
+
+/* 权限点 */
+.af-perm-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.af-perm {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 9px;
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    border: 1px solid transparent;
+}
+
+.af-perm.on {
+    background: #eef2ff;
+    border-color: #c7d2fe;
+    color: var(--primary-dark);
+}
+
+.af-perm.off {
+    background: var(--gray-50);
+    border-color: var(--gray-200);
+    color: var(--gray-400);
+    text-decoration: line-through;
+    text-decoration-color: var(--gray-300);
+}
+
+.af-perm.is-changed {
+    box-shadow: 0 0 0 2px #fde68a;
+}
+
+/* ---------------- 校验提示 ---------------- */
+.af-issues {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.af-issue {
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+    padding: 8px 10px;
+    border-radius: var(--radius-sm);
+    font-size: var(--fs-xs);
+    line-height: 1.5;
+}
+
+.af-issue.error {
+    background: #fef2f2;
+    color: #b91c1c;
+    border: 1px solid #fecaca;
+}
+
+.af-issue.warn {
+    background: #fffbeb;
+    color: #b45309;
+    border: 1px solid #fde68a;
+}
+
+.af-issue.ok {
+    background: #f0fdf4;
+    color: #15803d;
+    border: 1px solid #bbf7d0;
+}
+
+/* ---------------- 底部操作条 ---------------- */
+.af-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    border-top: 1px solid var(--gray-200);
+    background: var(--gray-50);
+}
+
+.af-actions .af-dirty {
+    font-size: 12px;
+    color: var(--warning);
+}
+
+.af-actions .af-spacer {
+    flex: 1 1 auto;
+}
+
+/* ---------------- 变更历史 ---------------- */
+.af-history {
+    padding: 0;
+}
+
+.af-hist-item {
+    display: flex;
+    gap: 12px;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--gray-100);
+    font-size: 13px;
+}
+
+.af-hist-item:last-child {
+    border-bottom: none;
+}
+
+.af-hist-time {
+    flex: 0 0 150px;
+    color: var(--gray-400);
+    font-size: 12px;
+    font-family: ui-monospace, Consolas, Monaco, monospace;
+}
+
+.af-hist-who {
+    flex: 0 0 130px;
+    color: var(--gray-700);
+}
+
+.af-hist-what {
+    flex: 1 1 auto;
+    color: var(--gray-600);
+    line-height: 1.6;
+}
+
+/* ---------------- Toast ---------------- */
+.af-toast {
+    position: fixed;
+    left: 50%;
+    bottom: 32px;
+    transform: translate(-50%, 16px);
+    padding: 10px 18px;
+    border-radius: var(--radius);
+    background: var(--gray-800);
+    color: #fff;
+    font-size: 13px;
+    box-shadow: var(--shadow-lg);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .18s, transform .18s;
+    z-index: 9999;
+    max-width: 70vw;
+}
+
+.af-toast.show {
+    opacity: 1;
+    transform: translate(-50%, 0);
+}
+
+.af-toast.ok { background: #15803d; }
+.af-toast.err { background: #b91c1c; }
+.af-toast.info { background: var(--gray-800); }
+
+/* ---------------- 未选中空态 ---------------- */
+.af-placeholder {
+    padding: 60px 24px;
+    text-align: center;
+    color: var(--gray-400);
+}
+
+.af-placeholder .af-ph-icon {
+    font-size: 32px;
+    opacity: .35;
+    margin-bottom: 10px;
+}
+
+.af-placeholder .af-ph-title {
+    font-size: 14px;
+    color: var(--gray-500);
+    margin-bottom: 6px;
+}
+
+.af-placeholder .af-ph-desc {
+    font-size: var(--fs-xs);
+    line-height: 1.7;
+}

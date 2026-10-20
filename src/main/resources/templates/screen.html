@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1"/>
+    <meta name="renderer" content="webkit"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <meta name="_csrf" th:content="${_csrf.token}"/>
+    <meta name="_csrf_header" th:content="${_csrf.headerName}"/>
+    <title>HIS报表查询系统 · 数据大屏</title>
+    <link rel="icon" href="/favicon.ico?v=2026092217"/>
+    <link rel="stylesheet" href="/static/css/screen.css?v=2026101601"/>
+    <!-- RemixIcon 走**本地**：项目部署在内网，取不到 CDN（README 也写明「本地化，不依赖CDN」）。 -->
+    <link href="/static/vendor/remixicon/remixicon.css?v=2026092101" rel="stylesheet"/>
+</head>
+<body>
+    <div id="screen-wrap">
+        <!-- 顶栏：时钟 / 标题 / 时效与操作 -->
+        <header class="screen-header">
+            <div class="header-side">
+                <span class="header-clock" id="headerClock">--</span>
+            </div>
+            <div class="header-title">
+                <!-- 院徽：圆外透明的 PNG，大屏是深色底，白底 JPG 会糊出一个白方块。
+                     与 h1 并排成一组居中，标题本身仍保持视觉居中（见 screen.css）。 -->
+                <img class="brand-logo" src="/static/images/logo.png?v=2026092217"
+                     alt="HIS报表查询系统" width="54" height="54"/>
+                <div class="header-title-text">
+                    <h1>HIS报表查询系统</h1>
+                    <div class="header-sub">数据可视化大屏</div>
+                    <div class="title-deco"><i></i></div>
+                </div>
+            </div>
+            <div class="header-side right">
+                <span class="demo-badge" id="demoBadge">演示数据</span>
+                <span class="updated-badge" id="updatedBadge"><span class="dot"></span>数据更新于 --:--</span>
+                <button class="header-btn" onclick="location.href='/'"><i class="ri-bar-chart-box-line"></i>进入报表系统</button>
+                <button class="header-btn warn" onclick="doLogout()"><i class="ri-logout-box-r-line"></i>退出登录</button>
+            </div>
+        </header>
+
+        <!-- 控制条：时间区间 + 社区。所有面板共用同一区间，标题随区间改写 -->
+        <div class="screen-filterbar">
+            <div class="fb-group">
+                <span class="fb-label"><i class="ri-time-line"></i>时间区间</span>
+                <div class="range-select" id="rangeSelect"></div>
+                <div class="range-custom">
+                    <input type="date" id="rangeStart" class="range-date" aria-label="自定义起始日期"/>
+                    <span class="fb-sep">~</span>
+                    <input type="date" id="rangeEnd" class="range-date" aria-label="自定义结束日期"/>
+                    <button class="range-apply" id="rangeApply">应用</button>
+                </div>
+            </div>
+            <div class="fb-group right">
+                <span class="fb-label"><i class="ri-map-pin-line"></i>社区</span>
+                <div class="community-select" id="communitySelect"></div>
+            </div>
+        </div>
+
+        <!-- 当前区间回显：明确告诉看屏的人「下面所有数字都是这个窗口」 -->
+        <div class="screen-rangebar" id="rangeBar"></div>
+
+        <!-- 主体三栏 -->
+        <main class="screen-body">
+            <!-- 左栏：区间核心量 -->
+            <section class="col col-left">
+                <div class="kpi-card">
+                    <div class="kpi-label"><i class="ri-run-line"></i><span id="labelOutpatient">区间门诊量</span></div>
+                    <div class="kpi-value"><span class="num" id="kpiOutpatient">--</span><span class="unit">人次</span></div>
+                    <div class="kpi-sub"><span>较上一区间 <span class="delta" id="kpiOutpatientDelta">--</span></span></div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-label"><i class="ri-hotel-bed-line"></i><span id="labelInpatient">期末在院人数</span></div>
+                    <div class="kpi-value"><span class="num" id="kpiInpatientCurrent">--</span><span class="unit">人</span></div>
+                    <div class="kpi-sub">
+                        <span>入院 <span class="delta up" id="kpiAdmitted">--</span></span>
+                        <span>出院 <span class="delta down" id="kpiDischarged">--</span></span>
+                    </div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-label"><i class="ri-money-cny-circle-line"></i><span id="labelRevenue">区间收入</span></div>
+                    <div class="kpi-value"><span class="num" id="kpiRevenueTotal">--</span><span class="unit">元</span></div>
+                    <div class="kpi-sub">
+                        <span>门诊 <span id="kpiRevenueMz">--</span></span>
+                        <span>住院 <span id="kpiRevenueZy">--</span></span>
+                    </div>
+                </div>
+                <div class="panel" style="flex:1;">
+                    <div class="panel-title"><span id="labelCommunity">各社区收入·毛利对比</span><span class="sub" id="subCommunity">全部社区</span></div>
+                    <div class="panel-body" id="chartCommunity"></div>
+                </div>
+            </section>
+
+            <!-- 中栏：主趋势 -->
+            <section class="col col-center">
+                <div class="panel" style="flex:1;">
+                    <div class="panel-title"><span id="labelOutpatientTrend">门诊量趋势</span><span class="sub" id="subOutpatientTrend">人次 · 全部社区</span></div>
+                    <div class="panel-body" id="chartOutpatientTrend"></div>
+                </div>
+                <div class="panel" style="flex:1;">
+                    <div class="panel-title"><span id="labelRevenueTrend">门诊 / 住院收入趋势</span><span class="sub" id="subRevenueTrend">万元 · 全部社区</span></div>
+                    <div class="panel-body" id="chartRevenueTrend"></div>
+                </div>
+                <div class="panel" style="flex:1;">
+                    <div class="panel-title"><span id="labelHourly">分时门诊量</span><span class="sub" id="subHourly">人次 · 全部社区</span></div>
+                    <div class="panel-body" id="chartHourly"></div>
+                </div>
+            </section>
+
+            <!-- 右栏：经营质量 -->
+            <section class="col col-right">
+                <div class="kpi-card">
+                    <div class="kpi-label"><i class="ri-line-chart-line"></i><span id="labelMarginRate">毛利率</span></div>
+                    <div class="kpi-value"><span class="num" id="kpiMarginRate">--</span><span class="unit">%</span></div>
+                    <div class="kpi-sub">
+                        <span>毛利额 <span id="kpiGrossMonth">--</span></span>
+                        <span>较上一区间 <span class="delta" id="kpiMarginDelta">--</span></span>
+                    </div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-label"><i class="ri-user-line"></i><span id="labelOutpatientPrice">门诊客单价</span></div>
+                    <div class="kpi-value"><span class="num" id="kpiOutpatientPrice">--</span><span class="unit">元</span></div>
+                    <div class="kpi-sub">
+                        <span>门诊收入 <span id="kpiPriceMz">--</span></span>
+                        <span>门诊人次 <span id="kpiOutpatientMonth">--</span></span>
+                    </div>
+                </div>
+                <div class="panel" style="flex:1.15;">
+                    <div class="panel-title"><span id="labelCategory">费用分类构成</span><span class="sub" id="subCategory">万元 · 全部社区</span></div>
+                    <div class="panel-body" id="chartCategory"></div>
+                </div>
+                <div class="panel" style="flex:1;">
+                    <div class="panel-title"><span id="labelAdmission">出入院趋势</span><span class="sub" id="subAdmission">人次 · 全部社区</span></div>
+                    <div class="panel-body" id="chartAdmission"></div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- 退出登录表单（带CSRF） -->
+    <form id="logoutForm" th:action="@{/logout}" method="post" style="display:none;">
+        <input type="hidden" name="_csrf" id="logoutCsrf" th:value="${_csrf.token}"/>
+    </form>
+
+    <script src="/static/js/echarts.min.js"></script>
+    <script src="/static/js/screen.js?v=2026101601"></script>
+</body>
+</html>

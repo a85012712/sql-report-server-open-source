@@ -2,14 +2,21 @@
 <html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8"/>
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1"/>
+    <meta name="renderer" content="webkit"/>
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <meta name="_csrf" th:content="${_csrf.token}"/>
     <meta name="_csrf_header" th:content="${_csrf.headerName}"/>
-    <title>HIS报表系统</title>
-    <link rel="stylesheet" href="/static/css/main.css?v=2026060202"/>
-    <link rel="stylesheet" href="/static/css/components.css?v=2026060202"/>
-    <link rel="stylesheet" href="/static/css/pages.css?v=2026060202"/>
-    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet"/>
+    <title>HIS报表查询系统</title>
+    <!-- 站点图标：文件在 static/favicon.ico（Spring Boot 约定位置，/favicon.ico 直接可取）。
+         这里显式声明一次，不依赖浏览器的「根路径自动发现」， 内网某些代理会吃掉那个隐式请求。 -->
+    <link rel="icon" href="/favicon.ico?v=2026092217"/>
+    <link rel="stylesheet" href="/static/css/main.css?v=2026101902"/>
+    <link rel="stylesheet" href="/static/css/components.css?v=2026101903"/>
+    <link rel="stylesheet" href="/static/css/pages.css?v=2026092110"/>
+    <link rel="stylesheet" href="/static/css/affiliation.css?v=2026091908"/>
+    <!-- RemixIcon 走**本地**：项目部署在内网，取不到 CDN（README 也写明「本地化，不依赖CDN」）。 -->
+    <link href="/static/vendor/remixicon/remixicon.css?v=2026092101" rel="stylesheet"/>
 </head>
 <body>
     <div id="main-app" class="page active">
@@ -17,8 +24,12 @@
         <aside class="sidebar" id="sidebar">
             <div class="sidebar-header">
                 <div class="logo">
-                    <i class="ri-bar-chart-box-line"></i>
-                    <span>HIS报表</span>
+                    <!-- 院徽：用**圆外透明**的 PNG。原图是白底 JPG，
+                         直接放会在深色侧栏上露出一个白方块。
+                         width/height 同时写死，避免图片没加载完时侧栏抖一下。 -->
+                    <img class="logo-img" src="/static/images/logo.png?v=2026092217"
+                         alt="HIS报表查询系统" width="28" height="28"/>
+                    <span>医疗BI</span>
                 </div>
                 <button class="sidebar-toggle" id="sidebarToggle">
                     <i class="ri-menu-line"></i>
@@ -26,41 +37,117 @@
             </div>
             <nav class="sidebar-nav">
                 <ul>
-                    <li class="nav-item active" data-page="dashboard">
+                    <!-- 工作台声明 data-perm：此前它是**唯一没有权限点依据**的菜单，
+                         「工作台」权限点（dashboard.view）在前后端都零消费者 ，
+                         管理员勾选/取消它没有任何效果，界面在骗人。
+                         注意：零权限角色会因此看不到任何菜单，所以必须有「无权限」落地页兜底
+                         （见 page-noperm 与 chooseLandingPage()）。 -->
+                    <li class="nav-item active" data-page="dashboard" data-perm="dashboard.view">
                         <i class="ri-dashboard-3-line"></i>
                         <span>工作台</span>
                     </li>
-                    <li class="nav-item" data-page="reports">
+                    <li class="nav-item" data-page="reports" data-perm="reports.view" style="display: none;">
                         <i class="ri-file-chart-line"></i>
                         <span>报表中心</span>
                     </li>
-                    <li class="nav-item admin-only" data-page="users" style="display: none;">
-                        <i class="ri-group-line"></i>
-                        <span>用户管理</span>
+                    <li class="nav-item" id="navScreen" style="display: none;" onclick="window.open('/screen', '_self')">
+                        <i class="ri-slideshow-3-line"></i>
+                        <span>可视化平台</span>
                     </li>
-                    <li class="nav-item admin-only" data-page="groups" style="display: none;">
-                        <i class="ri-folder-line"></i>
-                        <span>分组管理</span>
+                    <!-- ↓ 四个分组。父项 .nav-group 故意不挂 data-perm，它没有单一权限点，
+                         可见性由 app.js#syncNavGroups 按「子项可见性的或」算：子项全隐藏就把分组
+                         一起藏掉，避免出现「菜单点得开、里面一项都进不去」。
+                         子项的 data-page / data-perm / admin-only 全部照旧，权限语义零改动。 -->
+                    <li class="nav-group" data-group="perm">
+                        <div class="nav-group-title">
+                            <i class="ri-shield-user-line"></i>
+                            <span>权限与账号</span>
+                            <i class="ri-arrow-down-s-line nav-group-caret"></i>
+                        </div>
+                        <ul class="nav-group-items">
+                            <li class="nav-item nav-sub admin-only" data-page="users" data-perm="users.manage" style="display: none;">
+                                <i class="ri-group-line"></i>
+                                <span>用户管理</span>
+                            </li>
+                            <li class="nav-item nav-sub admin-only" data-page="roles" data-perm="roles.manage" style="display: none;">
+                                <i class="ri-shield-star-line"></i>
+                                <span>角色管理</span>
+                            </li>
+                            <li class="nav-item nav-sub admin-only" data-page="affiliation" data-perm="users.manage" style="display: none;">
+                                <i class="ri-user-settings-line"></i>
+                                <span>归属管理</span>
+                            </li>
+                        </ul>
                     </li>
-                    <li class="nav-item admin-only" data-page="reportmanage" style="display: none;">
-                        <i class="ri-file-settings-line"></i>
-                        <span>报表管理</span>
+                    <li class="nav-group" data-group="report">
+                        <div class="nav-group-title">
+                            <i class="ri-tools-line"></i>
+                            <span>报表配置</span>
+                            <i class="ri-arrow-down-s-line nav-group-caret"></i>
+                        </div>
+                        <ul class="nav-group-items">
+                            <li class="nav-item nav-sub admin-only" data-page="reportmanage" data-perm="report.manage" style="display: none;">
+                                <i class="ri-file-settings-line"></i>
+                                <span>报表管理</span>
+                            </li>
+                            <li class="nav-item nav-sub admin-only" data-page="sqlimport" data-perm="report.manage" style="display: none;">
+                                <i class="ri-code-line"></i>
+                                <span>SQL导入</span>
+                            </li>
+                            <li class="nav-item nav-sub admin-only" data-page="datasource" data-perm="datasource.manage" style="display: none;">
+                                <i class="ri-database-2-line"></i>
+                                <span>数据源管理</span>
+                            </li>
+                            <li class="nav-item nav-sub admin-only" data-page="groups" data-perm="groups.manage" style="display: none;">
+                                <i class="ri-folder-line"></i>
+                                <span>分组管理</span>
+                            </li>
+                        </ul>
                     </li>
-                    <li class="nav-item admin-only" data-page="logs" style="display: none;">
-                        <i class="ri-file-text-line"></i>
-                        <span>系统日志</span>
+                    <li class="nav-group" data-group="dict">
+                        <div class="nav-group-title">
+                            <i class="ri-book-3-line"></i>
+                            <span>基础字典</span>
+                            <i class="ri-arrow-down-s-line nav-group-caret"></i>
+                        </div>
+                        <ul class="nav-group-items">
+                            <li class="nav-item nav-sub admin-only" data-page="communities" data-perm="communities.manage" style="display: none;">
+                                <i class="ri-map-pin-2-line"></i>
+                                <span>社区管理</span>
+                            </li>
+                            <li class="nav-item nav-sub admin-only" data-page="departments" data-perm="departments.manage" style="display: none;">
+                                <i class="ri-hospital-line"></i>
+                                <span>科室管理</span>
+                            </li>
+                            <li class="nav-item nav-sub admin-only" data-page="personnel" data-perm="personnel.manage" style="display: none;">
+                                <i class="ri-team-line"></i>
+                                <span>人员管理</span>
+                            </li>
+                        </ul>
                     </li>
-                    <li class="nav-item admin-only" data-page="sqlimport" style="display: none;">
-                        <i class="ri-code-line"></i>
-                        <span>SQL导入</span>
-                    </li>
-                    <li class="nav-item admin-only" data-page="datasource" style="display: none;">
-                        <i class="ri-database-2-line"></i>
-                        <span>数据源管理</span>
+                    <li class="nav-group" data-group="logs">
+                        <div class="nav-group-title">
+                            <i class="ri-history-line"></i>
+                            <span>日志与审计</span>
+                            <i class="ri-arrow-down-s-line nav-group-caret"></i>
+                        </div>
+                        <ul class="nav-group-items">
+                            <li class="nav-item nav-sub admin-only" data-page="audit" data-perm="logs.view" style="display: none;">
+                                <i class="ri-survey-line"></i>
+                                <span>操作审计</span>
+                            </li>
+                            <li class="nav-item nav-sub admin-only" data-page="logs" data-perm="logs.view" style="display: none;">
+                                <i class="ri-file-text-line"></i>
+                                <span>系统日志</span>
+                            </li>
+                        </ul>
                     </li>
                 </ul>
             </nav>
             <div class="sidebar-footer">
+                <div style="text-align:center;font-size:var(--fs-xs);color:var(--gray-400);padding:0 0 8px;">YAO</div>
+                <!-- 版本号：构建时由 Maven 写入 build-info，运行时经 /api/version 读取（见 app.js） -->
+                <div id="appVersion" style="text-align:center;font-size:var(--fs-xs);color:var(--gray-400);padding:0 0 8px;"></div>
                 <div class="user-info">
                     <div class="user-avatar" id="userAvatar">A</div>
                     <div class="user-details">
@@ -82,11 +169,14 @@
                     </div>
                 </div>
                 <div class="topbar-right">
-                    <div class="search-box">
+                    <!-- 搜索框与「刷新报表」都是报表中心专用入口，按 reports.view 显隐（D9）。
+                         没有 reports.view 的角色（如「大屏查看」）看不到它们，也就不会
+                         敲回车跳进报表中心 / 点刷新去拉无权访问的列表。 -->
+                    <div class="search-box" data-perm="reports.view" style="display: none;">
                         <i class="ri-search-line"></i>
                         <input type="text" placeholder="搜索报表..." id="searchInput"/>
                     </div>
-                    <button class="topbar-btn" title="刷新报表" onclick="refreshReports()">
+                    <button class="topbar-btn" data-perm="reports.view" title="刷新报表" onclick="refreshReports()" style="display: none;">
                         <i class="ri-refresh-line"></i>
                     </button>
                     <button class="topbar-btn" title="修改密码" onclick="showChangePassword()">
@@ -107,25 +197,57 @@
 
             <!-- 内容页面 -->
             <div class="content-wrapper">
+                <!-- 「无权限」落地页，当某个角色的权限点**一个菜单都点亮不了**时显示。
+                     背景：给「工作台」补上 data-perm="dashboard.view" 后，一个「零权限」
+                     角色会看不到任何菜单。若仍默认导航到工作台，用户会落在
+                     **一个菜单高亮、内容却被权限隐藏**的空页面上，且不知道该做什么。
+                     本页把「为什么看不到东西」和「该找谁」说清楚。
+                     注意：它**不带任何 data-perm**，必须人人可见，否则又变成死页。 -->
+                <div id="page-noperm" class="content-page">
+                    <div class="page-header">
+                        <div>
+                            <h2>暂无可用功能</h2>
+                            <p>当前账号未被授予任何功能权限</p>
+                        </div>
+                    </div>
+                    <div style="max-width:640px;margin:40px auto;padding:32px;background:#fff;
+                                border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.08);text-align:center;">
+                        <i class="ri-lock-2-line" style="font-size:48px;color:var(--gray-400);"></i>
+                        <p style="margin:20px 0 8px;font-size:16px;color:var(--gray-700);">
+                            你的账号<strong>没有可用的功能权限</strong>
+                        </p>
+                        <p style="color:var(--gray-500);line-height:1.8;">
+                            登录本身是成功的，但当前角色没有勾选任何权限点。<br>
+                            请联系<strong>系统管理员</strong>为你的角色开通所需权限后重新登录。
+                        </p>
+                        <p style="margin-top:24px;color:var(--gray-400);font-size:13px;">
+                            当前账号：<span id="nopermUsername">—</span>
+                        </p>
+                    </div>
+                </div>
+
                 <!-- 工作台 -->
                 <div id="page-dashboard" class="content-page active">
                     <div class="page-header">
                         <div>
                             <h2>工作台</h2>
-                            <p>欢迎使用HIS报表系统</p>
+                            <p>欢迎使用HIS报表查询系统</p>
                         </div>
                     </div>
 
                     <!-- 统计卡片 -->
+                    <!-- 卡片按权限显隐（D9/D10）：报表数要 reports.view，数据源数要 datasource.manage。
+                         非管理员不显示对应卡片，也就不去调它无权访问的接口（原先无条件调
+                         /api/admin/datasources → 每个非管理员开页面都静默吃一个 403）。 -->
                     <div class="stats-grid">
-                        <div class="stat-card" onclick="navigateTo('reports')" style="cursor:pointer;">
+                        <div class="stat-card" data-perm="reports.view" onclick="navigateTo('reports')" style="cursor:pointer; display: none;">
                             <div class="stat-icon blue"><i class="ri-file-chart-line"></i></div>
                             <div class="stat-info">
                                 <h3 id="statReportCount">0</h3>
                                 <p>报表总数</p>
                             </div>
                         </div>
-                        <div class="stat-card">
+                        <div class="stat-card" data-perm="datasource.manage" style="display: none;">
                             <div class="stat-icon green"><i class="ri-database-2-line"></i></div>
                             <div class="stat-info">
                                 <h3 id="statDatasourceCount">-</h3>
@@ -154,23 +276,36 @@
                             <h3><i class="ri-flashlight-line"></i> 快捷操作</h3>
                         </div>
                         <div style="padding: 20px; display: flex; gap: 16px; flex-wrap: wrap;">
-                            <button class="btn-primary" onclick="navigateTo('reports')">
+                            <button class="btn-primary" data-perm="reports.view" onclick="navigateTo('reports')" style="display: none;">
                                 <i class="ri-file-chart-line"></i> 进入报表中心
                             </button>
-                            <button class="btn-sm" onclick="refreshReports()" style="padding: 12px 24px; font-size: 14px;">
+                            <button class="btn-sm" data-perm="reports.view" onclick="refreshReports()" style="padding: 12px 24px; font-size: 14px; display: none;">
                                 <i class="ri-refresh-line"></i> 刷新报表列表
                             </button>
-                            <button class="btn-sm admin-only" onclick="showSqlImport()" style="padding: 12px 24px; font-size: 14px; display:none;">
+                            <button class="btn-sm admin-only" data-perm="report.manage" onclick="showSqlImport()" style="padding: 12px 24px; font-size: 14px; display:none;">
                                 <i class="ri-code-line"></i> SQL导入
                             </button>
-                            <button class="btn-sm admin-only" onclick="navigateTo('users')" style="padding: 12px 24px; font-size: 14px; display:none;">
+                            <button class="btn-sm admin-only" data-perm="users.manage" onclick="navigateTo('users')" style="padding: 12px 24px; font-size: 14px; display:none;">
                                 <i class="ri-group-line"></i> 用户管理
                             </button>
                         </div>
                     </div>
 
-                    <!-- 最近访问 -->
-                    <div class="recent-section">
+                    <!-- 信息发布栏 -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h3><i class="ri-notification-3-line"></i> 信息发布栏</h3>
+                            <button class="btn-sm" id="btnAnnouncementNew" style="display:none;" onclick="showAnnouncementModal()">
+                                <i class="ri-add-line"></i> 发布信息
+                            </button>
+                        </div>
+                        <div id="announcementList" style="padding: 8px 20px 16px; max-height: 320px; overflow-y: auto;">
+                            <div style="color:var(--gray-400);text-align:center;padding:20px;">加载中...</div>
+                        </div>
+                    </div>
+
+                    <!-- 最近访问（无 reports.view 的角色不显示：点进去会 403） -->
+                    <div class="recent-section" data-perm="reports.view" style="display: none;">
                         <div class="card">
                             <div class="card-header">
                                 <h3><i class="ri-time-line"></i> 最近访问</h3>
@@ -205,7 +340,7 @@
                             <p>选择报表进行查询和导出</p>
                         </div>
                         <div class="header-actions">
-                            <button class="btn-sm" onclick="refreshReports()">
+                            <button class="btn-sm" data-perm="reports.view" onclick="refreshReports()" style="display: none;">
                                 <i class="ri-refresh-line"></i> 刷新
                             </button>
                         </div>
@@ -234,7 +369,12 @@
                             <button class="btn-primary" id="queryBtn" onclick="doQuery()">
                                 <i class="ri-search-line"></i> 查询
                             </button>
-                            <button class="btn-success" id="exportBtn" onclick="doExport()">
+                            <!-- 导出按钮必须声明 data-perm：POST /api/report/{id}/export 要 report.export，
+                                 而「导出Excel」是**独立的权限点**，管理员完全可能给出
+                                 「能看报表、但不许导出」的角色。按钮不带 data-perm 就是人人可见，
+                                 点下去 403（D13，与 D8 同一类）。 -->
+                            <button class="btn-success" id="exportBtn" data-perm="report.export"
+                                    style="display: none;" onclick="doExport()">
                                 <i class="ri-download-line"></i> 导出
                             </button>
                             <button class="btn-outline" onclick="navigateTo('reports')" title="退出报表">
@@ -303,7 +443,10 @@
                     </div>
                     <div class="card">
                         <div class="card-header">
-                            <h3><i class="ri-group-line"></i> 用户列表</h3>
+                            <h3><i class="ri-group-line"></i> 用户列表 <span id="userCount" style="font-weight:400;font-size:13px;color:var(--gray-500);margin-left:8px;"></span></h3>
+                            <div style="margin-left:auto;display:flex;gap:8px;align-items:center;">
+                                <input type="text" id="userSearchInput" placeholder="搜索工号/姓名..." class="form-control" style="width:220px;" oninput="renderUsersTable()"/>
+                            </div>
                         </div>
                         <div class="table-wrapper">
                             <table class="data-table">
@@ -313,12 +456,14 @@
                                         <th>姓名</th>
                                         <th>角色</th>
                                         <th>可查看分组</th>
+                                        <th>数据权限(社区/科室)</th>
+                                        <th>大屏权限 / 大屏号</th>
                                         <th>操作</th>
                                     </tr>
                                 </thead>
                                 <tbody id="userTableBody">
                                     <tr>
-                                        <td colspan="4" style="text-align: center; padding: 40px; color: var(--gray-400);">
+                                        <td colspan="7" style="text-align: center; padding: 40px; color: var(--gray-400);">
                                             加载中...
                                         </td>
                                     </tr>
@@ -373,11 +518,15 @@
                     <div class="page-header">
                         <div>
                             <h2>报表管理</h2>
-                            <p>管理报表：编辑SQL、隐藏/显示、修改分组、删除</p>
+                            <p>管理报表：编辑SQL、隐藏/显示、修改分组、删除；大屏指标的取数SQL也在本页下方维护</p>
                         </div>
                         <div class="header-actions">
                             <button class="btn-sm" onclick="loadReportsList()">
                                 <i class="ri-refresh-line"></i> 刷新
+                            </button>
+                            <button class="btn-sm admin-only" data-perm="report.manage" onclick="reloadReportDefinitions()" style="display:none;"
+                                title="让服务端重新扫描 SQL 目录（reports 定义），不是「刷新我看到的列表」">
+                                <i class="ri-restart-line"></i> 重载报表定义
                             </button>
                         </div>
                     </div>
@@ -412,12 +561,137 @@
                                 </thead>
                                 <tbody id="reportManageTableBody">
                                     <tr>
-                                        <td colspan="6" style="text-align: center; padding: 40px; color: var(--gray-400);">
+                                        <td colspan="7" style="text-align: center; padding: 40px; color: var(--gray-400);">
                                             加载中...
                                         </td>
                                     </tr>
                                 </tbody>
                             </table>
+                        </div>
+                    </div>
+
+                    <!-- 大屏指标（可视化平台）：口径 SQL 与刷新间隔都写在 scripts/screen/*.sql 的
+                         YAML 头 + SQL 里。这一张表给管理员一个不用登服务器改文件的入口，
+                         权限与报表 SQL 编辑同源（report.manage）。
+                         这里只改「取数语句」，面板布局仍由 screen.js 的渲染函数决定 ，
+                           新增一个指标 ID 不配渲染函数，只会多出一个没人画的面板。 -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h3><i class="ri-slideshow-3-line"></i> 大屏指标</h3>
+                            <div class="card-actions">
+                                <button class="btn-sm" data-act="screen-metric-refresh"
+                                    title="重新读取指标清单与最近取数状态（服务端每 5 分钟自动重扫目录）">
+                                    <i class="ri-refresh-line"></i> 刷新
+                                </button>
+                            </div>
+                        </div>
+                        <div class="table-wrapper">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>指标</th>
+                                        <th>文件</th>
+                                        <th>刷新间隔</th>
+                                        <th>最近取数（默认区间）</th>
+                                        <th>操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="screenMetricTableBody">
+                                    <tr>
+                                        <td colspan="5" style="text-align: center; padding: 40px; color: var(--gray-400);">
+                                            正在读取指标清单...
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 操作审计：按工号检索操作轨迹（区别于下面的运行日志查看器） -->
+                <div id="page-audit" class="content-page">
+                    <div class="page-header">
+                        <div>
+                            <h2>操作审计</h2>
+                            <p>谁、在什么时间、查了哪张报表、有没有导出的数据；默认留存 30 天，不受重启影响</p>
+                        </div>
+                        <div class="header-actions">
+                            <button class="btn-sm" data-act="audit-export">
+                                <i class="ri-download-line"></i> 导出 CSV
+                            </button>
+                            <button class="btn-sm" data-act="audit-refresh">
+                                <i class="ri-refresh-line"></i> 刷新
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-header">
+                            <h3><i class="ri-survey-line"></i> 检索条件</h3>
+                        </div>
+                        <div class="audit-filters" id="auditFilters">
+                            <label class="audit-field">工号
+                                <select id="auditUser" data-act="audit-change"></select>
+                            </label>
+                            <label class="audit-field">动作
+                                <select id="auditAction" data-act="audit-change"></select>
+                            </label>
+                            <label class="audit-field">结果
+                                <select id="auditStatus" data-act="audit-change">
+                                    <option value="">全部</option>
+                                    <option value="1">成功</option>
+                                    <option value="0">失败 / 被拒</option>
+                                </select>
+                            </label>
+                            <label class="audit-field">起
+                                <input type="date" id="auditFrom" data-act="audit-change">
+                            </label>
+                            <label class="audit-field">止
+                                <input type="date" id="auditTo" data-act="audit-change">
+                            </label>
+                            <label class="audit-field audit-field-grow">关键词
+                                <input type="text" id="auditKeyword" placeholder="报表名 / 文件 / 角色ID…"
+                                       data-act="audit-keyword" autocomplete="off">
+                            </label>
+                            <label class="audit-field">每页
+                                <select id="auditPageSize" data-act="audit-change">
+                                    <option value="20">20</option>
+                                    <option value="50" selected>50</option>
+                                    <option value="100">100</option>
+                                    <option value="200">200</option>
+                                </select>
+                            </label>
+                            <button class="btn btn-primary" data-act="audit-search">查询</button>
+                            <button class="btn-outline" data-act="audit-reset">重置</button>
+                        </div>
+                        <div class="audit-meta" id="auditMeta"></div>
+                        <div class="audit-warn" id="auditWarn" style="display:none"></div>
+                        <div class="audit-table-wrap">
+                            <table class="audit-table" id="auditTable">
+                                <thead>
+                                <tr>
+                                    <th>时间</th><th>工号</th><th>动作</th><th>报表</th>
+                                    <th>结果</th><th>行数</th><th>耗时</th><th>来源 IP</th><th></th>
+                                </tr>
+                                </thead>
+                                <tbody id="auditTbody">
+                                <tr><td colspan="9" class="audit-empty">加载中…</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="audit-pager" id="auditPager"></div>
+                    </div>
+                    <!-- 详情：额外字段与上下文整体展示，行不点击进入，只由「详情」按钮打开 -->
+                    <div class="modal" id="auditDetailModal">
+                        <div class="modal-overlay" data-act="audit-detail-close"></div>
+                        <div class="modal-container modal-medium">
+                            <div class="modal-header">
+                                <h3>审计记录详情</h3>
+                                <button class="modal-close" data-act="audit-detail-close"><i class="ri-close-line"></i></button>
+                            </div>
+                            <div class="modal-body" id="auditDetailBody"></div>
+                            <div class="modal-footer">
+                                <button class="btn-sm" data-act="audit-detail-close">关闭</button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -506,6 +780,122 @@
                         <!-- 动态加载 -->
                     </div>
                 </div>
+
+                <!-- 社区管理 -->
+                <div id="page-communities" class="content-page">
+                    <div class="page-header">
+                        <div>
+                            <h2>社区管理</h2>
+                            <p>维护社区字典：代码创建后不可改，可改名称与启停；报表下拉与大屏社区即时生效</p>
+                        </div>
+                        <div class="header-actions">
+                            <button class="btn-primary" onclick="showCommunityModal()"><i class="ri-add-line"></i> 新增社区</button>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-header"><h3><i class="ri-map-pin-2-line"></i> 社区列表</h3></div>
+                        <div class="table-wrapper">
+                            <table class="data-table">
+                                <thead><tr><th>代码</th><th>名称</th><th>状态</th><th>操作</th></tr></thead>
+                                <tbody id="communityTableBody">
+                                    <tr><td colspan="4" style="text-align:center;padding:40px;color:var(--gray-400);">加载中...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 科室管理 -->
+                <div id="page-departments" class="content-page">
+                    <div class="page-header">
+                        <div>
+                            <h2>科室管理</h2>
+                            <p>科室字典可从 HIS 导入后本地维护；工号可绑定科室（数据过滤为二期）</p>
+                        </div>
+                        <div class="header-actions">
+                            <button class="btn-primary" onclick="showDepartmentModal()"><i class="ri-add-line"></i> 新增科室</button>
+                            <button class="btn-primary" style="background:var(--secondary);" onclick="importDepartmentsHis()"><i class="ri-download-cloud-line"></i> 从HIS导入</button>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-header"><h3><i class="ri-hospital-line"></i> 科室列表</h3></div>
+                        <div class="table-wrapper">
+                            <table class="data-table">
+                                <thead><tr><th>编码</th><th>名称</th><th>类别</th><th>社区</th><th>联系人</th><th>电话</th><th>状态</th><th>操作</th></tr></thead>
+                                <tbody id="departmentTableBody">
+                                    <tr><td colspan="8" style="text-align:center;padding:40px;color:var(--gray-400);">加载中...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 人员管理 -->
+                <div id="page-personnel" class="content-page">
+                    <div class="page-header">
+                        <div>
+                            <h2>人员管理</h2>
+                            <p>人员字典来自 HIS 人员表，按所属科室编码匹配科室字典</p>
+                        </div>
+                        <div class="header-actions">
+                            <button class="btn-primary" onclick="showPersonnelModal()"><i class="ri-add-line"></i> 新增人员</button>
+                            <button class="btn-primary" style="background:var(--secondary);" onclick="importPersonnelHis()"><i class="ri-download-cloud-line"></i> 从HIS导入</button>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-header">
+                            <h3><i class="ri-team-line"></i> 人员列表 <span id="personnelCount" style="font-weight:400;font-size:13px;color:var(--gray-500);margin-left:8px;"></span></h3>
+                            <div style="margin-left:auto;display:flex;gap:8px;align-items:center;">
+                                <input type="text" id="personnelSearch" placeholder="搜索工号/姓名/科室编码..." class="form-control" style="width:220px;" oninput="renderPersonnelTable()"/>
+                            </div>
+                        </div>
+                        <div class="table-wrapper">
+                            <table class="data-table">
+                                <thead><tr><th>工号</th><th>姓名</th><th>性别</th><th>职称</th><th>所属科室</th><th>电话</th><th>状态</th><th>操作</th></tr></thead>
+                                <tbody id="personnelTableBody">
+                                    <tr><td colspan="8" style="text-align:center;padding:40px;color:var(--gray-400);">加载中...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 角色管理 -->
+                <div id="page-roles" class="content-page">
+                    <div class="page-header">
+                        <div>
+                            <h2>角色管理</h2>
+                            <p>角色是<strong>唯一事实来源</strong>：这里新增或修改的角色，会立即出现在「用户管理」与「归属管理」的角色下拉中。数据权限（社区/科室）不在这里配，在归属管理中按工号派生。</p>
+                        </div>
+                        <div class="header-actions">
+                            <button class="btn-primary" onclick="showRoleModal()"><i class="ri-add-line"></i> 新增角色</button>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-header"><h3><i class="ri-shield-star-line"></i> 角色列表</h3></div>
+                        <div class="table-wrapper">
+                            <table class="data-table">
+                                <thead><tr><th>角色</th><th>类型</th><th>权限</th><th>使用情况</th><th>操作</th></tr></thead>
+                                <tbody id="roleTableBody">
+                                    <tr><td colspan="5" style="text-align:center;padding:40px;color:var(--gray-400);">加载中...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 工号归属管理 -->
+                <div id="page-affiliation" class="content-page">
+                    <div class="page-header">
+                        <div>
+                            <h2>工号归属管理</h2>
+                            <p>每个工号维护一组归属信息：科室 → 自动推导 社区 → 决定可见社区范围（报表与大屏按社区过滤；按科室过滤为二期）；
+                               职务 → 带出 角色 → 决定权限点。
+                               角色下拉与「角色管理」页同源，在那里新增的角色这里立即可选。</p>
+                        </div>
+                    </div>
+                    <div id="af-root"></div>
+                </div>
             </div>
         </main>
     </div>
@@ -526,15 +916,39 @@
                 </div>
                 <div class="form-group">
                     <label>当前密码</label>
-                    <input type="password" id="changePwdOld" placeholder="输入当前密码"/>
+                    <div class="pwd-field">
+                        <input type="password" id="changePwdOld" placeholder="输入当前密码"/>
+                        <button type="button" class="pwd-toggle" data-target="changePwdOld"
+                                aria-label="显示密码" aria-pressed="false" title="显示密码"
+                                onclick="togglePwdVisibility('changePwdOld')">
+                            <i class="ri-eye-line" aria-hidden="true"></i>
+                        </button>
+                    </div>
                 </div>
                 <div class="form-group">
                     <label>新密码</label>
-                    <input type="password" id="changePwdNew" placeholder="至少8位，包含字母和数字"/>
+                    <div class="pwd-field">
+                        <input type="password" id="changePwdNew" placeholder="至少8位，包含字母和数字"
+                               oninput="updatePwdMatchHint('changePwdNew','changePwdConfirm','changePwdMatchHint')"/>
+                        <button type="button" class="pwd-toggle" data-target="changePwdNew"
+                                aria-label="显示密码" aria-pressed="false" title="显示密码"
+                                onclick="togglePwdVisibility('changePwdNew')">
+                            <i class="ri-eye-line" aria-hidden="true"></i>
+                        </button>
+                    </div>
                 </div>
                 <div class="form-group">
                     <label>确认新密码</label>
-                    <input type="password" id="changePwdConfirm" placeholder="再次输入新密码"/>
+                    <div class="pwd-field">
+                        <input type="password" id="changePwdConfirm" placeholder="再次输入新密码"
+                               oninput="updatePwdMatchHint('changePwdNew','changePwdConfirm','changePwdMatchHint')"/>
+                        <button type="button" class="pwd-toggle" data-target="changePwdConfirm"
+                                aria-label="显示密码" aria-pressed="false" title="显示密码"
+                                onclick="togglePwdVisibility('changePwdConfirm')">
+                            <i class="ri-eye-line" aria-hidden="true"></i>
+                        </button>
+                    </div>
+                    <div class="pwd-hint" id="changePwdMatchHint" role="status" aria-live="polite"></div>
                 </div>
                 <div class="form-actions">
                     <button class="btn-sm" onclick="hideChangePassword()" style="padding: 10px 20px;">取消</button>
@@ -557,15 +971,39 @@
                 <p style="color: var(--warning); margin-bottom: 16px;">您是首次登录，为了账户安全，请立即修改默认密码。</p>
                 <div class="form-group">
                     <label>当前密码</label>
-                    <input type="password" id="firstOldPwd" placeholder="输入当前密码"/>
+                    <div class="pwd-field">
+                        <input type="password" id="firstOldPwd" placeholder="输入当前密码"/>
+                        <button type="button" class="pwd-toggle" data-target="firstOldPwd"
+                                aria-label="显示密码" aria-pressed="false" title="显示密码"
+                                onclick="togglePwdVisibility('firstOldPwd')">
+                            <i class="ri-eye-line" aria-hidden="true"></i>
+                        </button>
+                    </div>
                 </div>
                 <div class="form-group">
                     <label>新密码</label>
-                    <input type="password" id="firstNewPwd" placeholder="至少8位，包含字母和数字"/>
+                    <div class="pwd-field">
+                        <input type="password" id="firstNewPwd" placeholder="至少8位，包含字母和数字"
+                               oninput="updatePwdMatchHint('firstNewPwd','firstConfirmPwd','firstPwdMatchHint')"/>
+                        <button type="button" class="pwd-toggle" data-target="firstNewPwd"
+                                aria-label="显示密码" aria-pressed="false" title="显示密码"
+                                onclick="togglePwdVisibility('firstNewPwd')">
+                            <i class="ri-eye-line" aria-hidden="true"></i>
+                        </button>
+                    </div>
                 </div>
                 <div class="form-group">
                     <label>确认新密码</label>
-                    <input type="password" id="firstConfirmPwd" placeholder="再次输入新密码"/>
+                    <div class="pwd-field">
+                        <input type="password" id="firstConfirmPwd" placeholder="再次输入新密码"
+                               oninput="updatePwdMatchHint('firstNewPwd','firstConfirmPwd','firstPwdMatchHint')"/>
+                        <button type="button" class="pwd-toggle" data-target="firstConfirmPwd"
+                                aria-label="显示密码" aria-pressed="false" title="显示密码"
+                                onclick="togglePwdVisibility('firstConfirmPwd')">
+                            <i class="ri-eye-line" aria-hidden="true"></i>
+                        </button>
+                    </div>
+                    <div class="pwd-hint" id="firstPwdMatchHint" role="status" aria-live="polite"></div>
                 </div>
                 <div class="form-actions">
                     <button class="btn-primary" onclick="submitFirstLoginPwd()" style="width:100%;padding: 12px;">确认修改</button>
@@ -618,7 +1056,12 @@
             </div>
             <div class="modal-body">
                 <p style="font-size: 13px; color: var(--gray-500); margin-bottom: 16px;">
-                    粘贴原始SQL，自动检测 <code style="background: var(--gray-100); padding: 2px 6px; border-radius: 4px;">[参数名]</code> 格式参数，转换为系统可用的报表
+                    可直接粘贴在数据库客户端（PL/SQL Developer 等）能运行的完整脚本，一键转换为报表：
+                    自动去除末尾分号、剥离 COMMIT 等辅助命令；支持
+                    <code style="background: var(--gray-100); padding: 2px 6px; border-radius: 4px;">[参数名]</code>
+                    <code style="background: var(--gray-100); padding: 2px 6px; border-radius: 4px;">:参数</code>
+                    <code style="background: var(--gray-100); padding: 2px 6px; border-radius: 4px;">&amp;变量</code>
+                    及硬编码日期自动参数化；转换后自动做只读安全校验
                 </p>
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
                     <div>
@@ -653,6 +1096,7 @@
                     <div>
                         <div class="form-group">
                             <label><i class="ri-list-check"></i> 检测到的参数</label>
+                            <div id="sqlImportNotes" style="margin-bottom: 8px;"></div>
                             <div id="sqlImportParams" style="min-height: 40px;">粘贴SQL后点击"预览转换"</div>
                         </div>
                         <div class="form-group">
@@ -750,7 +1194,8 @@
         <input type="hidden" name="_csrf" id="logoutCsrf"/>
     </form>
 
-    <script src="/static/js/app.js?v=2026060202"></script>
+    <script src="/static/js/app.js?v=2026101902"></script>
+    <script src="/static/js/affiliation.js?v=2026092001"></script>
     <script>
         // 更新时间
         function updateTime() {
@@ -762,30 +1207,27 @@
         updateTime();
         setInterval(updateTime, 60000);
 
-        // 加载仪表盘统计
-        async function loadDashboardStats() {
-            try {
-                // 报表数
-                const reportsRes = await fetch('/api/reports');
-                if (reportsRes.ok) {
-                    const reports = await reportsRes.json();
-                    const el = document.getElementById('statReportCount');
-                    if (el) el.textContent = reports.length;
-                }
-                // 数据源数
-                try {
-                    const dsRes = await fetch('/api/admin/datasources');
-                    if (dsRes.ok) {
-                        const ds = await dsRes.json();
-                        const dsEl = document.getElementById('statDatasourceCount');
-                        if (dsEl) dsEl.textContent = ds.length + ' 个';
-                    }
-                } catch (_) {}
-            } catch (e) {
-                console.error('加载统计失败:', e);
-            }
-        }
-        loadDashboardStats();
+        // 工作台统计卡片的数字：已移到 app.js 的 loadDashboardStats()。
+        // 原因（D10）：它原先在这里无条件调 /api/reports 与 /api/admin/datasources，
+        // 而后者需要 datasource.manage，每个非管理员打开页面都会静默吃一个 403。
+        // 统计项该不该出现、该不该去调接口，必须和侧栏/按钮用同一个判据（权限点），
+        // 所以它得和 loadUserInfo() 待在一起。
+
+        /**
+         * 版本号展示：读取 /api/version（版本由 Maven 构建时写入 build-info.properties）。
+         * 接口不可达或返回 unknown 时保持隐藏，不影响工作台任何功能。
+         */
+        (function loadAppVersion() {
+            const el = document.getElementById('appVersion');
+            if (!el) return;
+            fetch('/api/version', { headers: { 'Accept': 'application/json' } })
+                .then(r => r.ok ? r.json() : null)
+                .then(d => {
+                    if (!d || !d.version || d.version === 'unknown') return;
+                    el.textContent = '版本 v' + d.version;
+                })
+                .catch(() => { /* 版本展示失败不影响工作台 */ });
+        })();
     </script>
 </body>
 </html>

@@ -2,8 +2,11 @@
 <html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
 <head>
 <meta charset="UTF-8"/>
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1"/>
+    <meta name="renderer" content="webkit"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>登录 - HIS报表系统</title>
+<title>登录 - HIS报表查询系统</title>
+<link rel="icon" href="/favicon.ico?v=2026092217"/>
 <style>
 :root {
   --primary: #FF6B35;
@@ -163,6 +166,15 @@ canvas#bgCanvas {
   align-items: center;
   justify-content: center;
   min-width: 400px;
+}
+
+.left-section .brand-logo {
+  width: 92px;
+  height: 92px;
+  margin-bottom: 20px;
+  /* 院徽是圆外透明的，加一层柔和投影让它从动画背景上「浮」起来，
+     否则那些 orb / floating-shape 会从圆外透过来，看着像图没抠干净 */
+  filter: drop-shadow(0 6px 18px rgba(20, 40, 80, 0.18));
 }
 
 .left-section .title {
@@ -527,6 +539,11 @@ canvas#bgCanvas {
   color: #4ECDC4;
 }
 
+.alert-warn {
+  background: rgba(255, 217, 61, 0.16);
+  color: #B8860B;
+}
+
 .form-group {
   margin-bottom: 20px;
 }
@@ -568,6 +585,51 @@ canvas#bgCanvas {
 .form-group input::placeholder {
   color: #BDBDBD;
   font-weight: 400;
+}
+
+/* 验证码行：只在服务端判定「需要验证码」时渲染（见 LoginController 的 captchaRequired）。
+   输入框和图片并排，图片按原始尺寸显示、不拉伸，算术式一旦缩到 90% 宽就明显更难认读。 */
+.captcha-row {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+}
+
+.captcha-row input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.captcha-img {
+  flex: 0 0 auto;
+  width: 150px;
+  height: 44px;
+  border: 2px solid #FFE8E0;
+  border-radius: 12px;
+  background: #FFF8F5;
+  cursor: pointer;
+  /* 图片本身是 PNG，别再加滤镜；hover 只给一点可点提示 */
+  transition: border-color 0.2s;
+}
+
+.captcha-img:hover {
+  border-color: var(--primary);
+}
+
+.captcha-refresh {
+  flex: 0 0 auto;
+  align-self: center;
+  background: none;
+  border: none;
+  color: var(--text-light);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 6px 4px;
+  font-family: inherit;
+}
+
+.captcha-refresh:hover {
+  color: var(--primary);
 }
 
 .eye-btn {
@@ -677,6 +739,8 @@ canvas#bgCanvas {
   .characters-container { transform: scale(0.7); }
   .form-wrapper { padding: 24px; }
   .left-section .title { font-size: 28px; }
+  /* 小屏上标题缩到 28px，院徽跟着缩，否则 92px 会显得头重脚轻 */
+  .left-section .brand-logo { width: 68px; height: 68px; margin-bottom: 14px; }
 }
 </style>
 </head>
@@ -697,7 +761,11 @@ canvas#bgCanvas {
 
 <div class="page" id="page">
   <div class="left-section">
-    <div class="title">HIS报表系统</div>
+    <!-- 院徽：圆外透明的 PNG（原图是白底 JPG，直接放会带出一个白方块）。
+         width/height 写死，避免图片加载完之前标题跳一下。 -->
+    <img class="brand-logo" src="/static/images/logo.png?v=2026092217"
+         alt="HIS报表查询系统" width="92" height="92"/>
+    <div class="title">HIS报表查询系统</div>
     <div class="desc">内部数据查询平台</div>
     <div class="characters-container" id="characters">
       <div class="character-orange" id="charOrange">
@@ -733,28 +801,49 @@ canvas#bgCanvas {
     <p class="subtitle">请登录您的账号</p>
     
     <div class="alert alert-error" th:if="${param.error}">用户名或密码错误</div>
+    <div class="alert alert-error" th:if="${param.locked}">登录失败次数过多，账号已临时锁定，请稍后再试<span th:if="${param.sec}">（约 <span th:text="${param.sec[0]}">15</span> 秒）</span></div>
+    <div class="alert alert-error" th:if="${param.rate}">登录尝试过于频繁，请一分钟后再试</div>
+    <div class="alert alert-error" th:if="${param.caperr}">验证码没填对（或已过期），请重新看一眼图再输入</div>
     <div class="alert alert-success" th:if="${param.logout}">已成功退出登录</div>
+    <!-- 会话过期（如账号在其它设备登录后被顶下线）时由 SecurityConfig 重定向到 /login?expired -->
+    <div class="alert alert-warn" th:if="${param.expired}">登录状态已过期，请重新登录</div>
     
     <form action="/login" method="post">
+      <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
       <div class="form-group">
         <label>用户名</label>
         <div class="input-wrapper">
-          <input type="text" name="username" required="required" autofocus="autofocus" placeholder="输入用户名..." autocomplete="off"/>
+          <input type="text" name="username" required="required" autofocus="autofocus" placeholder="输入用户名..." autocomplete="username"/>
         </div>
       </div>
       <div class="form-group">
         <label>密码</label>
         <div class="input-wrapper">
-          <input type="password" id="password" name="password" required="required" placeholder="输入密码..."/>
+          <input type="password" id="password" name="password" required="required" placeholder="输入密码..." autocomplete="current-password"/>
           <button type="button" class="eye-btn" id="eyeBtn">&#128065;</button>
+        </div>
+      </div>
+      <!-- 验证码框：由服务端决定渲不渲（LoginController#captchaRequired）。
+           没到阈值时这一整块不存在，正常登录零打扰；也不会白取一次图片接口。
+           答案只画在图里，HTML 里没有任何答案或提示，不写进 data-* 、不写进注释。 -->
+      <div class="form-group" th:if="${captchaRequired}">
+        <label for="captcha">验证码</label>
+        <div class="captcha-row">
+          <input type="text" id="captcha" name="captcha" required="required"
+                 placeholder="得数" autocomplete="off" inputmode="numeric" maxlength="4"/>
+          <img id="captchaImg" class="captcha-img" src="/login/captcha"
+               alt="验证码图片：一道算术题，点击可换一张" width="150" height="44"/>
+          <button type="button" class="captcha-refresh" id="captchaRefresh">换一张</button>
         </div>
       </div>
       <button type="submit" class="submit-btn" id="loginBtn">登 录</button>
     </form>
     
     <div class="footer">
-      HIS报表系统 &copy; 2026 &nbsp;|&nbsp; YAO<br/>
-      Powered by Spring Boot
+      HIS报表查询系统 &copy; 2026 &nbsp;|&nbsp; YAO<br/>
+      内部使用，注意保护数据安全
+      <!-- 版本号：构建时由 Maven 写入 build-info，运行时经 /api/version 读取（见页面底部脚本） -->
+      <span id="appVersion" style="display:block;margin-top:6px;font-size:12px;opacity:.6;"></span>
     </div>
   </div>
 </div>
@@ -997,6 +1086,48 @@ canvas#bgCanvas {
     mouseX = e.touches[0].clientX;
     mouseY = e.touches[0].clientY;
   });
+})();
+</script>
+
+<script>
+/**
+ * 版本号展示：读取 /api/version（版本由 Maven 构建时写入 build-info.properties）。
+ * 接口不可达或返回 unknown 时保持隐藏，不影响登录页任何功能。
+ */
+(function () {
+  'use strict';
+  var el = document.getElementById('appVersion');
+  if (!el) return;
+  fetch('/api/version', { headers: { 'Accept': 'application/json' } })
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (d) {
+      if (!d || !d.version || d.version === 'unknown') return;
+      el.textContent = '版本 v' + d.version + (d.buildTime ? '（构建于 ' + d.buildTime + '）' : '');
+    })
+    .catch(function () { /* 版本展示失败不影响登录 */ });
+})();
+</script>
+
+<script>
+/**
+ * 验证码「换一张」：点图或点按钮都重取一次。
+ * 服务端每次 GET /login/captcha 都出一道新题并覆盖 Cookie 里的 token，所以这里只是让浏览器
+ * 再发一次请求。加 ?r= 纯粹为了绕开缓存，响应头已经是 no-store，但旧内核和某些代理上
+ * 仍然见过它复用同一 URL 的缓存，那样点了按钮题目却没换，比没有按钮更让人火大。
+ * 「换一张」按钮不是装饰：图片本身不接受键盘焦点，只靠点图的话键盘用户换不了题。
+ */
+(function () {
+  'use strict';
+  var img = document.getElementById('captchaImg');
+  if (!img) return;                       // 这次登录不需要验证码，那一整块根本没渲染
+  var btn = document.getElementById('captchaRefresh');
+  var input = document.getElementById('captcha');
+  function refresh() {
+    img.src = '/login/captcha?r=' + Date.now();
+    if (input) { input.value = ''; input.focus(); }
+  }
+  img.addEventListener('click', refresh);
+  if (btn) btn.addEventListener('click', refresh);
 })();
 </script>
 </body>

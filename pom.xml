@@ -7,18 +7,55 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.2.5</version>
+        <version>3.5.16</version>
         <relativePath/>
     </parent>
 
     <groupId>com.report</groupId>
     <artifactId>sql-report-server</artifactId>
-    <version>1.0.0</version>
+    <!--
+      版本号规则：<主>.<次>.<修订>-<构建日期 yyyyMMdd>
+        主版本：不兼容的架构/数据模型变更（如 1.2.0：Maven 坐标与 Java 包名整体重命名，
+                产物与 1.1.x 不可互换，必须用新版本号区分）
+        次版本：向后兼容的功能新增（如 1.1.0：大屏权限三层模型 + Spring Boot 3.5.16 升级）
+        修订号：向后兼容的问题修复
+        构建日期：同一语义版本多次构建时用于区分，同时让包名自带时间标记便于现场追溯
+      发布包命名：sql-report-server-<version>.jar（各版本文件并存，不再覆盖同名包）
+    -->
+    <version>1.5.0-20261020</version>
     <packaging>jar</packaging>
-    <name>SQL报表查询系统</name>
+    <name>HIS报表查询系统</name>
+    <description>基于 Spring Boot 的轻量级医院内部报表查询平台：SQL 报表、可视化数据大屏与统一权限管理</description>
+
+    <!-- 维护者：随 Maven 坐标一并发布，便于追溯程序包来源 -->
+    <developers>
+        <developer>
+            <id>yao</id>
+            <name>YAO</name>
+            <roles>
+                <role>developer</role>
+                <role>maintainer</role>
+            </roles>
+        </developer>
+    </developers>
 
     <properties>
         <java.version>21</java.version>
+
+        <!-- ==================== 安全补丁：覆盖 Spring Boot BOM 中的漏洞版本 ==================== -->
+        <!-- CVE-2025-24813 等：Tomcat 10.1.x 系列多个漏洞（部分 PUT / 请求走私 / DoS）
+             3.5.16 BOM 默认 10.1.55 → 显式提升至 10.1.60 -->
+        <tomcat.version>10.1.60</tomcat.version>
+        <!-- CVE-2025-48924 (ClassUtils.getClass 无限递归 DoS)
+             影响 commons-lang3 < 3.18.0；3.5.16 BOM 默认 3.17.0 → 显式提升至 3.20.0 -->
+        <commons-lang3.version>3.20.0</commons-lang3.version>
+        <!-- CVE-2024-12801 / CVE-2025-11226：修复版本只在 logback 1.5.13+。
+             3.5.16 BOM 已默认 1.5.34（含修复），此处再显式钉到 1.5.38 便于统一核对；
+             注意：Spring Boot 3.2.x 无法使用 logback 1.5.x（LogbackConfigurator 按
+             1.4.x 的方法签名调用 ContextBase#getConfigurationLock()，1.5.0 起返回类型
+             由 Object 改为 ReentrantLock → NoSuchMethodError，应用启动即失败），
+             故该项修复必须随 Spring Boot 升级（3.2.12 → 3.5.16）一并进行。 -->
+        <logback.version>1.5.38</logback.version>
     </properties>
 
     <dependencies>
@@ -65,17 +102,18 @@
         </dependency>
 
         <!-- Apache POI (Excel导出) -->
+        <!-- CVE-2025-31672 (OOXML 解析时 zip 条目校验缺失，可致 OOM/DoS)：
+             影响 poi-ooxml < 5.4.0，原值 5.3.0 → 升级至 5.4.1 -->
         <dependency>
             <groupId>org.apache.poi</groupId>
             <artifactId>poi-ooxml</artifactId>
-            <version>5.2.5</version>
+            <version>5.4.1</version>
         </dependency>
 
-        <!-- SnakeYAML (解析脚本配置) -->
+        <!-- SnakeYAML (解析脚本配置)：版本交由 Spring Boot BOM 管理（3.5.16 → 2.4） -->
         <dependency>
             <groupId>org.yaml</groupId>
             <artifactId>snakeyaml</artifactId>
-            <version>2.2</version>
         </dependency>
 
         <!-- Jackson JSON -->
@@ -91,20 +129,77 @@
             <scope>runtime</scope>
         </dependency>
 
-        <!-- Spring Boot DevTools (开发时热加载) -->
+        <!-- Spring Boot DevTools (开发时热加载，不进生产包) -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-devtools</artifactId>
-            <scope>runtime</scope>
+            <scope>provided</scope>
             <optional>true</optional>
+        </dependency>
+
+        <!-- 测试 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 
     <build>
         <plugins>
+            <!-- 在 MANIFEST.MF 中写入归属信息。
+                 说明：spring-boot-maven-plugin 的 repackage 会保留原始 jar 的 MANIFEST 条目，
+                 因此最终可执行包内同样带有下列字段，现场可直接核对包来源：
+                   unzip -p sql-report-server-<version>.jar META-INF/MANIFEST.MF -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <configuration>
+                    <archive>
+                        <manifest>
+                            <addDefaultImplementationEntries>true</addDefaultImplementationEntries>
+                            <addDefaultSpecificationEntries>true</addDefaultSpecificationEntries>
+                        </manifest>
+                        <manifestEntries>
+                            <Implementation-Title>HIS报表查询系统</Implementation-Title>
+                            <Implementation-Vendor>YAO</Implementation-Vendor>
+                            <Implementation-Vendor-Id>com.report</Implementation-Vendor-Id>
+                            <Author>YAO</Author>
+                        </manifestEntries>
+                    </archive>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <parameters>true</parameters>
+                </configuration>
+            </plugin>
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+                <executions>
+                    <!-- 生成 META-INF/build-info.properties：
+                         供 /actuator/info 与 /api/version 在运行时返回构建时间，
+                         便于现场核对「跑的是哪个包」。 -->
+                    <execution>
+                        <id>build-info</id>
+                        <goals>
+                            <goal>build-info</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>

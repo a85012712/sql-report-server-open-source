@@ -7,12 +7,12 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import com.report.util.AtomicFileWriter;
 import jakarta.annotation.PostConstruct;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.StandardOpenOption;
 import java.util.*;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.stream.Collectors;
@@ -86,28 +86,22 @@ public class GroupPermissionService {
      * 注意：此方法必须在写锁释放后调用（保证数据修改已完成），或在初始化时调用。
      */
     private void saveConfig() {
-        // 在读锁内快速拷贝数据快照
-        String json;
-        lock.readLock().lock();
+        // 在写锁内完成「快照 + 序列化 + 写文件」，避免并发修改时的丢失更新（后写覆盖先写）。
+        // 调用方在变更后已释放写锁，此处重新获取写锁不会死锁；配置文件较小，锁内 I/O 可接受。
+        lock.writeLock().lock();
         try {
             Map<String, Object> config = new LinkedHashMap<>();
             config.put("groups", new ArrayList<>(groups));
             config.put("assignments", new LinkedHashMap<>(reportGroupMap));
             config.put("customNames", new LinkedHashMap<>(reportCustomNames));
             config.put("hiddenReports", new LinkedHashSet<>(hiddenReports));
-            json = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(config);
+            String json = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(config);
+            AtomicFileWriter.writeString(Paths.get(configFilePath), json);
         } catch (Exception e) {
-            log.error("序列化分组配置失败", e);
-            return;
-        } finally { lock.readLock().unlock(); }
-
-        // 在无锁状态下执行文件I/O
-        try {
-            Path path = Paths.get(configFilePath);
-            Path parent = path.getParent();
-            if (parent != null && !Files.exists(parent)) Files.createDirectories(parent);
-            Files.writeString(path, json, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
-        } catch (IOException e) { log.error("保存分组配置失败", e); }
+            log.error("保存分组配置失败", e);
+        } finally {
+            lock.writeLock().unlock();
+        }
     }
 
     public List<Map<String, Object>> getAllGroups() {
@@ -168,13 +162,6 @@ public class GroupPermissionService {
         log.info("[AUDIT] action=setReportGroup, report={}, group={}", reportId, groupId);
     }
 
-    public void setReportGroups(Map<String, String> assignments) {
-        lock.writeLock().lock();
-        try { reportGroupMap.putAll(assignments); }
-        finally { lock.writeLock().unlock(); }
-        saveConfig();
-    }
-
     public String getCustomName(String reportId) {
         lock.readLock().lock();
         try { return reportCustomNames.get(reportId); }
@@ -191,25 +178,14 @@ public class GroupPermissionService {
         log.info("[AUDIT] action=setCustomName, report={}, name={}", reportId, customName);
     }
 
-    public List<String> filterReportsByGroups(Collection<String> allReportIds, List<String> userGroups) {
-        if (userGroups == null) return new ArrayList<>(allReportIds);
-        lock.readLock().lock();
-        try {
-            return allReportIds.stream().filter(rid -> {
-                String group = reportGroupMap.getOrDefault(rid, "default");
-                return userGroups.contains(group);
-            }).collect(Collectors.toList());
-        } finally { lock.readLock().unlock(); }
-    }
-
     public Map<String, Object> getFullConfig() {
         lock.readLock().lock();
         try {
             Map<String, Object> config = new LinkedHashMap<>();
-            config.put("groups", groups);
-            config.put("assignments", reportGroupMap);
-            config.put("customNames", reportCustomNames);
-            config.put("hiddenReports", hiddenReports);
+            config.put("groups", new ArrayList<>(groups));
+            config.put("assignments", new LinkedHashMap<>(reportGroupMap));
+            config.put("customNames", new LinkedHashMap<>(reportCustomNames));
+            config.put("hiddenReports", new LinkedHashSet<>(hiddenReports));
             return config;
         } finally { lock.readLock().unlock(); }
     }

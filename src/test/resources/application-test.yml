@@ -1,0 +1,73 @@
+server:
+  servlet:
+    session:
+      cookie:
+        name: BISESSIONID
+        secure: false
+
+spring:
+  main:
+    allow-bean-definition-overriding: true
+  mvc:
+    throw-exception-if-no-handler-found: false
+  web:
+    resources:
+      add-mappings: true
+  datasource:
+    # 测试用 H2，避免依赖 Oracle
+    url: jdbc:h2:mem:report_test;MODE=Oracle;DB_CLOSE_DELAY=-1;DATABASE_TO_UPPER=false
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+  thymeleaf:
+    cache: true
+
+app:
+  security:
+    admin:
+      username: admin
+      password: AdminTest1
+    login:
+      max-failures: 5
+      lock-minutes: 15
+  users:
+    data-file: ${java.io.tmpdir}/report-it/users.json
+  datasource:
+    config-file: ${java.io.tmpdir}/report-it/datasources.json
+    default-id: default
+  data:
+    group-config: ${java.io.tmpdir}/report-it/groups.json
+
+report:
+  # 固定测试脚本目录（勿用多处 random.uuid，避免与 @Value 注入不一致）
+  scripts-dir: ${java.io.tmpdir}/report-it/scripts
+  max-rows: 1000
+  query-timeout: 10
+  count-cache-ttl-seconds: 0
+  options-cache-ttl-seconds: 0
+  # 测试环境默认池为 H2，连通检查开启即可
+  datasource-check-on-startup: true
+
+screen:
+  # 大屏指标目录固定到测试临时目录：编辑类用例**会真的写文件**，
+  # 不能让它落到仓库的 scripts/screen（那是正在使用的口径）。
+  scripts-dir: ${java.io.tmpdir}/report-it/scripts/screen
+  # 关掉定时与保存后的即时重跑（H2 里没有 HIS 的表，跑了只会刷错误日志）；
+  # 指标文件的读写本身不受这个开关影响，关的是取数，不是维护。
+  enabled: false
+
+rate-limiter:
+  enabled: false
+
+logging:
+  level:
+    root: WARN
+    com.report: INFO
+  file:
+    name: ${java.io.tmpdir}/sql-report-server-test.log
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
